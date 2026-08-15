@@ -1,6 +1,8 @@
 import sys
 import os
 import traceback
+import tempfile
+import pathlib
 
 # System path patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -18,14 +20,19 @@ from tests.test_safety_and_nary import (
     test_concurrent_category_filter_zero_violations,
     test_isotropic_spatiotemporal_encoding
 )
-
-import tempfile
-import pathlib
+from tests.test_cpp_kernels import (
+    test_tt_kan_cpp_forward_precision,
+    test_tt_kan_cpp_gradient_precision,
+    test_cp_kan_cpp_forward_precision,
+    test_cp_kan_cpp_gradient_precision,
+    test_cpp_throughput_and_latency_benchmark,
+    test_gil_release_and_concurrency
+)
 
 def main():
-    print("=" * 70)
-    print("HYPER-SYMBOLIC KAN NUMERICAL & ARCHITECTURAL TEST SUITE")
-    print("=" * 70)
+    print("=" * 75)
+    print("HYPER-SYMBOLIC KAN FULL ARCHITECTURAL & C++ NUMERICAL TEST SUITE")
+    print("=" * 75)
     
     tests = [
         ("TDFFNet Analytical Gradient vs Finite Differences", test_tdff_net_analytical_gradient),
@@ -34,6 +41,12 @@ def main():
         ("WebGPU Buffer Layout & Serialization Format", test_webgpu_buffers_format),
         ("Concurrent Category Guard Safety (0% Violations)", test_concurrent_category_filter_zero_violations),
         ("Isotropic Multi-Dimensional Spatio-Temporal Encoding", test_isotropic_spatiotemporal_encoding),
+        ("TT-KAN Native C++ (nanobind) Forward Precision (< 1e-11)", test_tt_kan_cpp_forward_precision),
+        ("TT-KAN Native C++ (nanobind) Gradient Precision (< 1e-10)", test_tt_kan_cpp_gradient_precision),
+        ("CP-KAN Native C++ (nanobind) Forward Precision (< 1e-11)", test_cp_kan_cpp_forward_precision),
+        ("CP-KAN Native C++ (nanobind) Gradient Precision (< 1e-10)", test_cp_kan_cpp_gradient_precision),
+        ("Native C++ SIMD Throughput & Latency (> 1,500,000 pts/s)", test_cpp_throughput_and_latency_benchmark),
+        ("Native C++ GIL Release & Concurrency (Multi-Threading)", test_gil_release_and_concurrency),
     ]
     
     passed = 0
@@ -56,11 +69,12 @@ def main():
         print(f" [FAIL] KAN JSON Serialization Roundtrip: {e}")
         traceback.print_exc()
 
-    print("=" * 70)
-    print(f"TOTAL: {passed} / {len(tests) + 1} PASSED")
-    print("=" * 70)
+    total = len(tests) + 1
+    print("=" * 75)
+    print(f"TOTAL: {passed} / {total} PASSED")
+    print("=" * 75)
     
-    if passed == len(tests) + 1:
+    if passed == total:
         sys.exit(0)
     else:
         sys.exit(1)

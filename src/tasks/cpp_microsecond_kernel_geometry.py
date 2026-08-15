@@ -32,8 +32,8 @@ def run_task_14_cpp_microsecond_kernel_benchmark() -> bool:
     # 2. Inicjalizacja Natywnego Silnika C++ FastCPPKANEngine
     cpp_engine = FastCPPKANEngine(spatial_dim=D, degree=5)
     
-    is_native_dll = cpp_engine.dll is not None
-    print(f"[+] Native C++ Shared Library Loaded: {'YES (fast_kan_kernel.dll)' if is_native_dll else 'NO (Fused SIMD Pipeline Fallback)'}")
+    is_native_dll = cpp_engine.is_native_available()
+    print(f"[+] Native C++ Nanobind Module Loaded: {'YES (_cpp_kernels with AVX2 & OpenMP)' if is_native_dll else 'NO (Fused SIMD Pipeline Fallback)'}")
     
     # 3. Benchmark Ewaluacji 50,000 Punktów w 10D
     N_eval = 50000
