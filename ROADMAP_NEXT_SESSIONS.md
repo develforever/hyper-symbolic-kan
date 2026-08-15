@@ -42,12 +42,13 @@ flowchart TD
 
 ---
 
-### Etap D: Integracja z Ekosystemem PyTorch / JAX
+### Etap D: Integracja z Ekosystemem PyTorch / JAX (ZREALIZOWANE)
 - **Cel**: Umożliwienie bezproblemowego stosowania pól KAN w potokach Deep Learning.
-- **Zadania techniczne**:
-  1. Utworzenie klasy `ContinuousKANFieldLayer(torch.nn.Module)`.
-  2. Dedykowany `torch.autograd.Function` przekazujący analityczne pochodne $\nabla f$ bezpośrednio do wstecznej propagacji bez konieczności automatycznego różniczkowania pamięciochłonnych grafów obliczeniowych.
-  3. Eksport wytrenowanych modeli do formatu `.safetensors`.
+- **Zrealizowane zadania**:
+  1. Klasy `ContinuousKANAutograd` i `TensorTrainKANAutograd` (`torch.autograd.Function`) z analitycznymi gradientami $O(1)$ pamięci grafu i integracją z natywnym kernelem C++ nanobind/SIMD.
+  2. Warstwy `ContinuousKANLayer(nn.Module)` oraz `TensorTrainKANLayer(nn.Module)` z pełną obsługą batchingu N-D, mostkami do solverów ALS/TT-Cross (0 epok) oraz fine-tuningiem gradientowym `torch.optim.Adam`.
+  3. Standaryzacja zapisu i odczytu `.safetensors` (`src/torch_kan/safetensors_io.py`) z zachowaniem metadanych topologii tensorowej.
+  4. Kompletny zestaw 9 testów jednostkowych i integracyjnych (`tests/test_torch_kan.py`), w tym rygorystyczny `torch.autograd.gradcheck` (100% PASS, 27/27 testów w całym repozytorium).
 
 ---
 

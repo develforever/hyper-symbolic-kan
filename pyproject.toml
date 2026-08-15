@@ -17,7 +17,8 @@ dependencies = [
     "scipy>=1.10.0",
     "torch>=2.0.0",
     "sympy>=1.12",
-    "nanobind>=2.0.0"
+    "nanobind>=2.0.0",
+    "safetensors>=0.4.0"
 ]
 
 [tool.scikit-build]
