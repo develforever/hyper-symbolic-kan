@@ -1,12 +1,19 @@
 import { useState, useMemo, useCallback } from "react";
 import { KanFieldVisualizer } from "./components/KanFieldVisualizer";
 import { ControlPanel } from "./components/ControlPanel";
-import { TelemetryOverlay } from "./components/TelemetryOverlay";
+import { TelemetryOverlay, type RoboticsTelemetryProps } from "./components/TelemetryOverlay";
+import { ScenarioSelector, type ScenarioType } from "./components/scenarios/ScenarioSelector";
+import { RoboticsCBFScenario } from "./components/scenarios/RoboticsCBFScenario";
 import { KanEvaluator, type KANModelData } from "./engine/kanEvaluator";
+import { RoboticsCBFEngine } from "./engine/roboticsCbfEngine";
 import initialWeights from "./data/initial_kan_weights.json";
 import { Sparkles, Terminal, Box } from "lucide-react";
 
 export function App() {
+  // Nawigacja Scenariuszy
+  const [activeScenario, setActiveScenario] = useState<ScenarioType>("robotics");
+
+  // Stan Scenariusza 1: WebGPU Swarm & Continuous KAN
   const [modelData, setModelData] = useState<KANModelData>(initialWeights as unknown as KANModelData);
   const [viewMode, setViewMode] = useState<"volume" | "swarm" | "dual">("dual");
   const [safetyGuardActive, setSafetyGuardActive] = useState<boolean>(true);
@@ -20,11 +27,45 @@ export function App() {
   const [obstaclePos, setObstaclePos] = useState<[number, number, number]>([0.4, -0.25, 0.1]);
   const [isWebGPU, setIsWebGPU] = useState<boolean | null>(null);
 
+  // Stan Scenariusza 2: Robotics 3D Drone & Dynamic HOCBF
+  const [useHocbf, setUseHocbf] = useState<boolean>(true);
+  const [cbfSafetyEnabled, setCbfSafetyEnabled] = useState<boolean>(true);
+  const [alpha, setAlpha] = useState<number>(3.5);
+  const [alpha1, setAlpha1] = useState<number>(6.0);
+  const [alpha2, setAlpha2] = useState<number>(4.0);
+  const [vMax, setVMax] = useState<number>(2.2);
+  const [aMax, setAMax] = useState<number>(9.0);
+  const [tangentialGain, setTangentialGain] = useState<number>(1.8);
+  const [patrolMode, setPatrolMode] = useState<boolean>(true);
+
+  const [roboticsTelemetry, setRoboticsTelemetry] = useState<RoboticsTelemetryProps>({
+    qpLatencyUs: 4.2,
+    minH: 0.25,
+    speed: 0.0,
+    accel: 0.0,
+    collision: false,
+    useHocbf: true,
+    safetyEnabled: true,
+  });
+
   const evaluator = useMemo(() => {
     return new KanEvaluator(modelData);
   }, [modelData]);
 
-  // Adaptacja Online Streaming ALS przy przesunięciu przeszkody
+  const cbfEngine = useMemo(() => {
+    return new RoboticsCBFEngine({
+      alpha,
+      alpha1,
+      alpha2,
+      vMax,
+      aMax,
+      tangentialGain,
+      useHocbf,
+      safetyEnabled: cbfSafetyEnabled,
+    });
+  }, []);
+
+  // Adaptacja Online Streaming ALS przy przesunięciu przeszkody (Swarm)
   const handleMoveObstacle = useCallback((dx: number, dy: number, dz: number) => {
     setObstaclePos((prev) => {
       const nextPos: [number, number, number] = [
@@ -61,7 +102,7 @@ export function App() {
     });
   }, [evaluator]);
 
-  const handleReset = useCallback(() => {
+  const handleResetSwarm = useCallback(() => {
     setModelData(initialWeights as unknown as KANModelData);
     setObstaclePos([0.4, -0.25, 0.1]);
     setIsoLevel(0.10);
@@ -70,9 +111,14 @@ export function App() {
     setSafetyGuardActive(true);
   }, []);
 
+  const handleResetDrone = useCallback(() => {
+    cbfEngine.resetDrone([-0.75, -0.6, -0.2]);
+    cbfEngine.setGoal([0.7, -0.4, 0.2]);
+  }, [cbfEngine]);
+
   return (
     <div className="app-container">
-      {/* Pasek nawigacyjny */}
+      {/* Pasek nawigacyjny z Selektorem Scenariuszy */}
       <header className="app-header">
         <div className="header-brand">
           <Box className="header-logo-icon" size={22} />
@@ -84,9 +130,20 @@ export function App() {
           </div>
         </div>
 
+        {/* Selektor Scenariuszy */}
+        <ScenarioSelector
+          activeScenario={activeScenario}
+          onSelectScenario={setActiveScenario}
+        />
+
         <div className="header-badges">
           <span className="badge badge-accent">
-            <Sparkles size={12} /> {isWebGPU !== false ? "WebGPU WGSL Compute (500k)" : "WebGL2 Fallback"}
+            <Sparkles size={12} />{" "}
+            {activeScenario === "robotics"
+              ? "120 FPS HOCBF Digital Twin"
+              : isWebGPU !== false
+              ? "WebGPU WGSL Compute (500k)"
+              : "WebGL2 Fallback"}
           </span>
           <span className="badge badge-mono">
             <Terminal size={12} /> 0 Backprop Epochs
@@ -96,55 +153,119 @@ export function App() {
 
       {/* Główny obszar roboczy */}
       <main className="app-main">
-        {/* Widok 3D Canvas */}
+        {/* Widok 3D Canvas w zależności od aktywnego scenariusza */}
         <div className="viewport-container">
-          <KanFieldVisualizer
-            modelData={modelData}
-            evaluator={evaluator}
-            viewMode={viewMode}
-            isoLevel={isoLevel}
-            density={density}
-            colorScheme={colorScheme}
-            safetyGuardActive={safetyGuardActive}
-            numAgents={numAgents}
-            flowSpeed={flowSpeed}
-            noiseAmount={noiseAmount}
-            obstaclePos={obstaclePos}
-            onViolationCount={setViolations}
-            onWebGPUStatus={setIsWebGPU}
-          />
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              display: activeScenario === "swarm" ? "block" : "none",
+            }}
+          >
+            <KanFieldVisualizer
+              modelData={modelData}
+              evaluator={evaluator}
+              viewMode={viewMode}
+              isoLevel={isoLevel}
+              density={density}
+              colorScheme={colorScheme}
+              safetyGuardActive={safetyGuardActive}
+              numAgents={numAgents}
+              flowSpeed={flowSpeed}
+              noiseAmount={noiseAmount}
+              obstaclePos={obstaclePos}
+              onViolationCount={setViolations}
+              onWebGPUStatus={setIsWebGPU}
+            />
+          </div>
+
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              display: activeScenario === "robotics" ? "block" : "none",
+            }}
+          >
+            <RoboticsCBFScenario
+              cbfEngine={cbfEngine}
+              useHocbf={useHocbf}
+              safetyEnabled={cbfSafetyEnabled}
+              alpha={alpha}
+              alpha1={alpha1}
+              alpha2={alpha2}
+              vMax={vMax}
+              aMax={aMax}
+              tangentialGain={tangentialGain}
+              patrolMode={patrolMode}
+              onTelemetryUpdate={setRoboticsTelemetry}
+            />
+          </div>
 
           {/* Nakładka telemetryczna */}
           <TelemetryOverlay
-            rank={modelData.rank}
-            degree={modelData.degree}
-            numAgents={numAgents}
-            violations={violations}
-            safetyGuardActive={safetyGuardActive}
-            isWebGPU={isWebGPU}
+            mode={activeScenario}
+            swarm={{
+              rank: modelData.rank,
+              degree: modelData.degree,
+              numAgents,
+              violations,
+              safetyGuardActive,
+              isWebGPU,
+            }}
+            robotics={roboticsTelemetry}
           />
         </div>
 
         {/* Boczny panel kontrolny */}
         <aside className="sidebar-container">
           <ControlPanel
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            safetyGuardActive={safetyGuardActive}
-            setSafetyGuardActive={setSafetyGuardActive}
-            numAgents={numAgents}
-            setNumAgents={setNumAgents}
-            isoLevel={isoLevel}
-            setIsoLevel={setIsoLevel}
-            density={density}
-            setDensity={setDensity}
-            colorScheme={colorScheme}
-            setColorScheme={setColorScheme}
-            flowSpeed={flowSpeed}
-            setFlowSpeed={setFlowSpeed}
-            isWebGPU={isWebGPU}
-            onMoveObstacle={handleMoveObstacle}
-            onReset={handleReset}
+            activeScenario={activeScenario}
+            swarm={{
+              viewMode,
+              setViewMode,
+              safetyGuardActive,
+              setSafetyGuardActive,
+              numAgents,
+              setNumAgents,
+              isoLevel,
+              setIsoLevel,
+              density,
+              setDensity,
+              colorScheme,
+              setColorScheme,
+              flowSpeed,
+              setFlowSpeed,
+              isWebGPU,
+              onMoveObstacle: handleMoveObstacle,
+              onReset: handleResetSwarm,
+            }}
+            robotics={{
+              useHocbf,
+              setUseHocbf,
+              safetyEnabled: cbfSafetyEnabled,
+              setSafetyEnabled: setCbfSafetyEnabled,
+              alpha,
+              setAlpha,
+              alpha1,
+              setAlpha1,
+              alpha2,
+              setAlpha2,
+              vMax,
+              setVMax,
+              aMax,
+              setAMax,
+              tangentialGain,
+              setTangentialGain,
+              patrolMode,
+              setPatrolMode,
+              onResetDrone: handleResetDrone,
+            }}
           />
         </aside>
       </main>

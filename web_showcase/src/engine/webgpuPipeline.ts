@@ -335,6 +335,7 @@ export class WebGPUSwarmEngine {
     if (
       this.frameCount % 15 === 0 &&
       !this.isStagingMapped &&
+      this.statsBuffer &&
       this.statsStagingBuffer &&
       this.statsStagingBuffer.mapState === "unmapped"
     ) {

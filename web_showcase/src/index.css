@@ -502,3 +502,99 @@ body, html {
   border-color: var(--cyan-primary);
   color: var(--cyan-primary);
 }
+
+/* SELEKTOR SCENARIUSZY (Header Navigation) */
+.scenario-selector-container {
+  display: flex;
+  align-items: center;
+}
+
+.scenario-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(4, 7, 14, 0.7);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+}
+
+.scenario-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+}
+
+.scenario-tab-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.scenario-tab-btn.tab-active {
+  background: rgba(6, 182, 212, 0.12);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.15);
+}
+
+.tab-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.tab-active .tab-icon-wrapper {
+  background: rgba(6, 182, 212, 0.2);
+  color: var(--cyan-primary);
+}
+
+.tab-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tab-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: var(--font-mono);
+}
+
+.tab-subtitle {
+  font-size: 9.5px;
+  color: var(--text-dim);
+}
+
+.tab-active .tab-subtitle {
+  color: #94a3b8;
+}
+
+.tab-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  background: rgba(6, 182, 212, 0.18);
+  color: var(--cyan-primary);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  margin-left: 4px;
+}
+
