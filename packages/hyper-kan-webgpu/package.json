@@ -1,0 +1,43 @@
+{
+  "name": "@hyper-kan/webgpu",
+  "version": "1.0.0",
+  "description": "Zero-dependency, high-performance WebGPU compute pipeline and standalone TypeScript evaluator for Hyper-Symbolic KAN (Continuous Polyadic & Tensor Train fields).",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/index.js"
+  },
+  "keywords": [
+    "hyper-kan",
+    "kan",
+    "kolmogorov-arnold",
+    "webgpu",
+    "compute-shaders",
+    "wgsl",
+    "tensor-decomposition",
+    "chebyshev",
+    "neural-implicit-fields",
+    "mesh-free"
+  ],
+  "author": "Hyper-Symbolic KAN Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@webgpu/types": "^0.1.44",
+    "typescript": "^5.4.0"
+  }
+}

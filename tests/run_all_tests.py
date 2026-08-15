@@ -55,6 +55,20 @@ from tests.test_applications import (
     test_poisson_solver_3d_zero_epochs,
     test_poisson_high_dim_tensor_train
 )
+from tests.test_jax_kan import (
+    test_jax_cp_kan_custom_vjp_vs_autodiff,
+    test_jax_tt_kan_custom_vjp_vs_autodiff,
+    test_jax_jit_compilation_and_shapes,
+    test_jax_continuous_kan_layer_fit_als,
+    test_jax_gradient_descent_optimization
+)
+from tests.test_facade_api import (
+    test_facade_tensor_field_fit_predict_gradient,
+    test_facade_tensor_field_torch_jax_bridges,
+    test_facade_tensor_train_field_fit_cross,
+    test_facade_poisson_solver,
+    test_facade_cbf_planner
+)
 
 def main():
     print("=" * 75)
@@ -98,6 +112,18 @@ def main():
         ("Mesh-Free 2D Poisson Analytical Benchmark (< 1e-4 in 0 Epochs)", test_poisson_solver_2d_analytical_benchmark),
         ("Mesh-Free 3D Poisson Spectral Solver (< 1e-4 in 0 Epochs)", test_poisson_solver_3d_zero_epochs),
         ("High-Dimensional 4D TT-KAN Poisson Solver (ALS 0 Epochs)", test_poisson_high_dim_tensor_train),
+        # Stage F: JAX Ecosystem Backend & Custom VJP
+        ("JAX CP-KAN Custom VJP Analytical vs Autodiff (< 1e-9)", test_jax_cp_kan_custom_vjp_vs_autodiff),
+        ("JAX TT-KAN Custom VJP Analytical vs Autodiff (< 1e-9)", test_jax_tt_kan_custom_vjp_vs_autodiff),
+        ("JAX JIT Compilation & Multi-Batch Shapes", test_jax_jit_compilation_and_shapes),
+        ("JAX ContinuousKANLayer 0-Epoch ALS Fitting", test_jax_continuous_kan_layer_fit_als),
+        ("JAX ContinuousKANLayer Gradient Descent Convergence", test_jax_gradient_descent_optimization),
+        # Stage F: High-Level Facade API (import hyper_kan as hk)
+        ("High-Level hk.TensorField Fit, Predict & Gradient", test_facade_tensor_field_fit_predict_gradient),
+        ("High-Level hk.TensorField PyTorch & JAX Bridges", test_facade_tensor_field_torch_jax_bridges),
+        ("High-Level hk.TensorTrainField TT-Cross Continuous Fit", test_facade_tensor_train_field_fit_cross),
+        ("High-Level hk.PoissonSolver Mesh-Free PDE Solve", test_facade_poisson_solver),
+        ("High-Level hk.CBFPlanner Certified Collision Avoidance", test_facade_cbf_planner),
     ]
     
     passed = 0
