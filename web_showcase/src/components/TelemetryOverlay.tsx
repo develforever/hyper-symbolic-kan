@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, Zap, Gauge, Layers, Crosshair } from "lucide-react";
+import { ShieldCheck, Zap, Gauge, Layers, Crosshair, Wind, Activity } from "lucide-react";
 
 export interface SwarmTelemetryProps {
   rank: number;
@@ -20,16 +20,36 @@ export interface RoboticsTelemetryProps {
   safetyEnabled: boolean;
 }
 
+export interface AerodynamicsTelemetryProps {
+  solveTimeMs: number;
+  cl: number;
+  cd: number;
+  cm: number;
+  glideRatio: number;
+  circulation: number;
+  stagnationPoint: [number, number];
+  stagnationCp: number;
+  minCp: number;
+  maxVelocity: number;
+  pdeResidualL2: number;
+  aoaDeg: number;
+  uInf: number;
+  airfoilName: string;
+  isStalled: boolean;
+}
+
 interface TelemetryOverlayProps {
-  mode: "swarm" | "robotics";
+  mode: "swarm" | "robotics" | "aerodynamics";
   swarm?: SwarmTelemetryProps;
   robotics?: RoboticsTelemetryProps;
+  aerodynamics?: AerodynamicsTelemetryProps;
 }
 
 export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
   mode,
   swarm,
   robotics,
+  aerodynamics,
 }) => {
   const [fps, setFps] = useState(60);
   const [frameTime, setFrameTime] = useState(16.6);
@@ -57,6 +77,111 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
     return () => cancelAnimationFrame(animId);
   }, []);
 
+  // Scenariusz 3: Aerodynamika CFD Tunel
+  if (mode === "aerodynamics" && aerodynamics) {
+    const aero = aerodynamics;
+    const isLiftPositive = aero.cl >= 0;
+
+    return (
+      <div className="telemetry-panel">
+        <div className="telemetry-header">
+          <div className="status-dot-container">
+            <span
+              className="status-dot"
+              style={{
+                background: aero.isStalled ? "var(--red-primary)" : "var(--cyan-primary)",
+                boxShadow: aero.isStalled ? "0 0 8px var(--red-primary)" : "0 0 8px var(--cyan-primary)",
+              }}
+            ></span>
+            <span className="telemetry-title">
+              NACA CFD &bull; {aero.airfoilName} (&alpha; = {aero.aoaDeg >= 0 ? `+${aero.aoaDeg.toFixed(1)}` : aero.aoaDeg.toFixed(1)}&deg;)
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <span
+              className="badge-zero-epochs"
+              style={{
+                background: "rgba(6, 182, 212, 0.15)",
+                color: "var(--cyan-primary)",
+                borderColor: "rgba(6, 182, 212, 0.3)",
+              }}
+            >
+              0 BACKPROP EPOCHS
+            </span>
+            <span
+              className="badge-zero-epochs"
+              style={{
+                background: aero.isStalled ? "rgba(239, 68, 68, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                color: aero.isStalled ? "var(--red-primary)" : "var(--emerald-primary)",
+                borderColor: aero.isStalled ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)",
+              }}
+            >
+              {aero.isStalled ? "FLOW SEPARATION (STALL)" : "ATTACHED FLOW"}
+            </span>
+          </div>
+        </div>
+
+        <div className="telemetry-grid">
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Zap size={14} className="icon-amber" />
+              <span>CFD SOLVER LATENCY</span>
+            </div>
+            <div className="telemetry-card-val text-amber">
+              {aero.solveTimeMs.toFixed(2)} <span className="telemetry-unit">ms (0 Epochs)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Activity size={14} className={isLiftPositive ? "icon-emerald" : "icon-red"} />
+              <span>LIFT COEFFICIENT C_L</span>
+            </div>
+            <div className={`telemetry-card-val ${isLiftPositive ? "text-emerald" : "text-red"}`}>
+              {aero.cl >= 0 ? `+${aero.cl.toFixed(2)}` : aero.cl.toFixed(2)}{" "}
+              <span className="telemetry-unit">L/D: {aero.glideRatio}</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Wind size={14} className="icon-red" />
+              <span>DRAG COEFFICIENT C_D</span>
+            </div>
+            <div className="telemetry-card-val text-red">
+              {aero.cd.toFixed(4)}{" "}
+              <span className="telemetry-unit">C_M: {aero.cm.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <ShieldCheck size={14} className="icon-cyan" />
+              <span>PDE LAPLACE RESIDUAL L2</span>
+            </div>
+            <div className="telemetry-card-val text-cyan">
+              {aero.pdeResidualL2.toExponential(2)}{" "}
+              <span className="telemetry-unit">&nabla;&sup2;&psi; &equiv; 0</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="math-proof-box">
+          <div className="math-label">
+            INCOMPRESSIBLE POTENTIAL FLOW &amp; BERNOULLI SURFACE PRESSURE:
+          </div>
+          <div className="math-formula">
+            u(x, y) = (&part;&psi;/&part;y, -&part;&psi;/&part;x) &nbsp;&bull;&nbsp;
+            C_p(x, y) = 1 - ||u||&sup2; / U<sub>&infin;</sub>&sup2; &nbsp;&bull;&nbsp;
+            C_L = &oint; C_p n_y ds &nbsp;&bull;&nbsp;
+            &Gamma; = {aero.circulation.toFixed(1)} m&sup2;/s
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Scenariusz 2: Robotyka CBF
   if (mode === "robotics" && robotics) {
     const isSafe = robotics.safetyEnabled && !robotics.collision;
     const hColorClass = robotics.minH > 0.05 ? "text-emerald" : robotics.minH >= 0 ? "text-amber" : "text-red";

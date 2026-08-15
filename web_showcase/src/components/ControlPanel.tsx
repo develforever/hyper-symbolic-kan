@@ -10,8 +10,12 @@ import {
   Navigation,
   Activity,
   Radio,
+  Wind,
+  Compass,
+  Eye,
 } from "lucide-react";
 import { type ScenarioType } from "./scenarios/ScenarioSelector";
+import { type NACAProfileConfig } from "../engine/aerodynamicsCfdEngine";
 
 interface SwarmControlProps {
   viewMode: "volume" | "swarm" | "dual";
@@ -55,17 +59,274 @@ interface RoboticsControlProps {
   onResetDrone: () => void;
 }
 
+export interface AerodynamicsControlProps {
+  aoaDeg: number;
+  setAoaDeg: (v: number) => void;
+  uInf: number;
+  setUInf: (v: number) => void;
+  airfoilConfig: NACAProfileConfig;
+  setAirfoilConfig: React.Dispatch<React.SetStateAction<NACAProfileConfig>>;
+  showStreamlines: boolean;
+  setShowStreamlines: (v: boolean) => void;
+  showPressureMap: boolean;
+  setShowPressureMap: (v: boolean) => void;
+  showVectors: boolean;
+  setShowVectors: (v: boolean) => void;
+  showSmokeParticles: boolean;
+  setShowSmokeParticles: (v: boolean) => void;
+  streamlineDensity: number;
+  setStreamlineDensity: (v: number) => void;
+  onResetTunnel: () => void;
+}
+
 interface ControlPanelProps {
   activeScenario: ScenarioType;
   swarm: SwarmControlProps;
   robotics: RoboticsControlProps;
+  aerodynamics: AerodynamicsControlProps;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   activeScenario,
   swarm,
   robotics,
+  aerodynamics,
 }) => {
+  // Scenariusz 3: Tunel Aerodynamiczny CFD (0 Epok)
+  if (activeScenario === "aerodynamics") {
+    const aero = aerodynamics;
+    const currentName = `NACA ${Math.round(aero.airfoilConfig.camber * 100)}${Math.round(
+      aero.airfoilConfig.camberPos * 10
+    )}${Math.round(aero.airfoilConfig.thickness * 100) < 10 ? "0" : ""}${Math.round(
+      aero.airfoilConfig.thickness * 100
+    )}`;
+
+    return (
+      <div className="control-panel">
+        {/* Status Solver KAN CFD */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Wind size={16} />
+            <span>MESH-FREE CFD SOLVER (0 EPOCHS)</span>
+          </div>
+          <div
+            className="guard-toggle-card guard-active"
+            style={{ cursor: "default" }}
+          >
+            <div className="guard-info">
+              <span className="guard-title">EXACT CONFORMAL &amp; KUTTA KAN</span>
+              <span className="guard-desc">
+                Analytical streamfunction &nabla;&sup2;&psi; = 0 &bull; Solve latency &le; 1.5 ms
+              </span>
+            </div>
+            <div className="switch-indicator switch-on"></div>
+          </div>
+        </div>
+
+        {/* Presety Profili NACA */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Compass size={16} />
+            <span>NACA AIRFOIL PRESETS</span>
+          </div>
+          <div className="button-group" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            {[
+              { label: "NACA 0012", m: 0.0, p: 0.0, t: 0.12 },
+              { label: "NACA 2412", m: 0.02, p: 0.4, t: 0.12 },
+              { label: "NACA 4415", m: 0.04, p: 0.4, t: 0.15 },
+              { label: "NACA 0024", m: 0.0, p: 0.0, t: 0.24 },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                className={`btn-toggle ${currentName === preset.label ? "active" : ""}`}
+                onClick={() => {
+                  aero.setAirfoilConfig((prev) => ({
+                    ...prev,
+                    camber: preset.m,
+                    camberPos: preset.p,
+                    thickness: preset.t,
+                  }));
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Parametry Aerodynamiczne */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Sliders size={16} />
+            <span>FLOW PARAMETERS</span>
+          </div>
+
+          {/* Kąt Natarcia AoA */}
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>Angle of Attack &alpha;</span>
+              <span className="slider-val" style={{ color: aero.aoaDeg > 15 ? "#ef4444" : "var(--cyan-primary)" }}>
+                {aero.aoaDeg >= 0 ? `+${aero.aoaDeg.toFixed(1)}` : aero.aoaDeg.toFixed(1)}&deg;
+                {aero.aoaDeg > 15 ? " (STALL)" : ""}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={-15.0}
+              max={25.0}
+              step={0.5}
+              value={aero.aoaDeg}
+              onChange={(e) => aero.setAoaDeg(parseFloat(e.target.value))}
+              className="custom-slider"
+            />
+            {/* Szybkie presety AoA */}
+            <div className="preset-row" style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
+              {[-5, 0, 5, 10, 15, 20].map((deg) => (
+                <button
+                  key={deg}
+                  className={`palette-btn ${aero.aoaDeg === deg ? "palette-active" : ""}`}
+                  style={{ flex: 1, padding: "4px 2px", fontSize: "9.5px", textAlign: "center" }}
+                  onClick={() => aero.setAoaDeg(deg)}
+                >
+                  {deg >= 0 ? `+${deg}°` : `${deg}°`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Prędkość Napływu U_inf */}
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>Freestream Speed U<sub>&infin;</sub></span>
+              <span className="slider-val">{aero.uInf.toFixed(0)} m/s</span>
+            </div>
+            <input
+              type="range"
+              min={5.0}
+              max={60.0}
+              step={1.0}
+              value={aero.uInf}
+              onChange={(e) => aero.setUInf(parseFloat(e.target.value))}
+              className="custom-slider"
+            />
+          </div>
+
+          {/* Grubość profilu NACA */}
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>Airfoil Thickness (t/c)</span>
+              <span className="slider-val">{(aero.airfoilConfig.thickness * 100).toFixed(0)}%</span>
+            </div>
+            <input
+              type="range"
+              min={0.06}
+              max={0.24}
+              step={0.01}
+              value={aero.airfoilConfig.thickness}
+              onChange={(e) =>
+                aero.setAirfoilConfig((prev) => ({
+                  ...prev,
+                  thickness: parseFloat(e.target.value),
+                }))
+              }
+              className="custom-slider"
+            />
+          </div>
+
+          {/* Ugięcie profilu Camber */}
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>Max Camber (m/c)</span>
+              <span className="slider-val">{(aero.airfoilConfig.camber * 100).toFixed(0)}%</span>
+            </div>
+            <input
+              type="range"
+              min={0.0}
+              max={0.08}
+              step={0.01}
+              value={aero.airfoilConfig.camber}
+              onChange={(e) =>
+                aero.setAirfoilConfig((prev) => ({
+                  ...prev,
+                  camber: parseFloat(e.target.value),
+                  camberPos: prev.camberPos || 0.4,
+                }))
+              }
+              className="custom-slider"
+            />
+          </div>
+
+          {/* Gęstość linii prądu */}
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>Streamlines Rake Count</span>
+              <span className="slider-val">{aero.streamlineDensity} lines</span>
+            </div>
+            <input
+              type="range"
+              min={12}
+              max={40}
+              step={2}
+              value={aero.streamlineDensity}
+              onChange={(e) => aero.setStreamlineDensity(parseInt(e.target.value))}
+              className="custom-slider"
+            />
+          </div>
+        </div>
+
+        {/* Przełączniki Wizualizacji */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Eye size={16} />
+            <span>VISUALIZATION OVERLAYS</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <button
+              className={`btn-toggle ${aero.showPressureMap ? "active" : ""}`}
+              onClick={() => aero.setShowPressureMap(!aero.showPressureMap)}
+              style={{ justifyContent: "flex-start", padding: "8px 12px" }}
+            >
+              &bull; Surface Pressure C<sub>p</sub> Heatmap (Suction/Pressure)
+            </button>
+            <button
+              className={`btn-toggle ${aero.showStreamlines ? "active" : ""}`}
+              onClick={() => aero.setShowStreamlines(!aero.showStreamlines)}
+              style={{ justifyContent: "flex-start", padding: "8px 12px" }}
+            >
+              &bull; 3D Analytical Streamlines (RK4)
+            </button>
+            <button
+              className={`btn-toggle ${aero.showSmokeParticles ? "active" : ""}`}
+              onClick={() => aero.setShowSmokeParticles(!aero.showSmokeParticles)}
+              style={{ justifyContent: "flex-start", padding: "8px 12px" }}
+            >
+              &bull; Dynamic Smoke Particle Advection (120 FPS)
+            </button>
+            <button
+              className={`btn-toggle ${aero.showVectors ? "active" : ""}`}
+              onClick={() => aero.setShowVectors(!aero.showVectors)}
+              style={{ justifyContent: "flex-start", padding: "8px 12px" }}
+            >
+              &bull; Aerodynamic Forces (Lift C<sub>L</sub>, Drag C<sub>D</sub> &amp; Stagnation)
+            </button>
+          </div>
+        </div>
+
+        {/* Reset Sceny */}
+        <div className="panel-section">
+          <button
+            className="btn-drift"
+            style={{ width: "100%", padding: "10px", display: "flex", justifyContent: "center", gap: "8px" }}
+            onClick={aero.onResetTunnel}
+          >
+            <RotateCcw size={14} /> Reset NACA Wind Tunnel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Scenariusz 2: Robotyka CBF
   if (activeScenario === "robotics") {
     return (
       <div className="control-panel">

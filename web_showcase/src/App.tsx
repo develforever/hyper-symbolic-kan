@@ -1,17 +1,23 @@
 import { useState, useMemo, useCallback } from "react";
 import { KanFieldVisualizer } from "./components/KanFieldVisualizer";
 import { ControlPanel } from "./components/ControlPanel";
-import { TelemetryOverlay, type RoboticsTelemetryProps } from "./components/TelemetryOverlay";
+import {
+  TelemetryOverlay,
+  type RoboticsTelemetryProps,
+  type AerodynamicsTelemetryProps,
+} from "./components/TelemetryOverlay";
 import { ScenarioSelector, type ScenarioType } from "./components/scenarios/ScenarioSelector";
 import { RoboticsCBFScenario } from "./components/scenarios/RoboticsCBFScenario";
+import { AerodynamicsCFDScenario } from "./components/scenarios/AerodynamicsCFDScenario";
 import { KanEvaluator, type KANModelData } from "./engine/kanEvaluator";
 import { RoboticsCBFEngine } from "./engine/roboticsCbfEngine";
+import { type NACAProfileConfig, type CFDSolverResult } from "./engine/aerodynamicsCfdEngine";
 import initialWeights from "./data/initial_kan_weights.json";
 import { Sparkles, Terminal, Box } from "lucide-react";
 
 export function App() {
-  // Nawigacja Scenariuszy
-  const [activeScenario, setActiveScenario] = useState<ScenarioType>("robotics");
+  // Nawigacja Scenariuszy (1: Swarm, 2: Robotics, 3: Aerodynamics CFD)
+  const [activeScenario, setActiveScenario] = useState<ScenarioType>("aerodynamics");
 
   // Stan Scenariusza 1: WebGPU Swarm & Continuous KAN
   const [modelData, setModelData] = useState<KANModelData>(initialWeights as unknown as KANModelData);
@@ -48,6 +54,77 @@ export function App() {
     safetyEnabled: true,
   });
 
+  // Stan Scenariusza 3: Mesh-Free Aerodynamics CFD Wind Tunnel (0 Epochs)
+  const [aoaDeg, setAoaDeg] = useState<number>(5.0);
+  const [uInf, setUInf] = useState<number>(25.0);
+  const [airfoilConfig, setAirfoilConfig] = useState<NACAProfileConfig>({
+    camber: 0.02,
+    camberPos: 0.4,
+    thickness: 0.12,
+    chord: 1.0,
+    nStations: 70,
+  });
+  const [showStreamlines, setShowStreamlines] = useState<boolean>(true);
+  const [showPressureMap, setShowPressureMap] = useState<boolean>(true);
+  const [showVectors, setShowVectors] = useState<boolean>(true);
+  const [showSmokeParticles, setShowSmokeParticles] = useState<boolean>(true);
+  const [streamlineDensity, setStreamlineDensity] = useState<number>(24);
+
+  const [aerodynamicsTelemetry, setAerodynamicsTelemetry] = useState<AerodynamicsTelemetryProps>({
+    solveTimeMs: 0.35,
+    cl: 0.72,
+    cd: 0.021,
+    cm: -0.05,
+    glideRatio: 34.3,
+    circulation: 18.5,
+    stagnationPoint: [-0.24, -0.02],
+    stagnationCp: 1.0,
+    minCp: -2.35,
+    maxVelocity: 42.1,
+    pdeResidualL2: 1.2e-14,
+    aoaDeg: 5.0,
+    uInf: 25.0,
+    airfoilName: "NACA 2412",
+    isStalled: false,
+  });
+
+  const handleAeroTelemetry = useCallback((res: CFDSolverResult) => {
+    setAerodynamicsTelemetry({
+      solveTimeMs: res.solveTimeMs,
+      cl: res.cl,
+      cd: res.cd,
+      cm: res.cm,
+      glideRatio: res.glideRatio,
+      circulation: res.circulation,
+      stagnationPoint: res.stagnationPoint,
+      stagnationCp: res.stagnationCp,
+      minCp: res.minCp,
+      maxVelocity: res.maxVelocity,
+      pdeResidualL2: res.pdeResidualL2,
+      aoaDeg: res.aoaDeg,
+      uInf: res.uInf,
+      airfoilName: res.airfoilName,
+      isStalled: res.isStalled,
+    });
+  }, []);
+
+  const handleResetTunnel = useCallback(() => {
+    setAoaDeg(5.0);
+    setUInf(25.0);
+    setAirfoilConfig({
+      camber: 0.02,
+      camberPos: 0.4,
+      thickness: 0.12,
+      chord: 1.0,
+      nStations: 70,
+    });
+    setShowStreamlines(true);
+    setShowPressureMap(true);
+    setShowVectors(true);
+    setShowSmokeParticles(true);
+    setStreamlineDensity(24);
+  }, []);
+
   const evaluator = useMemo(() => {
     return new KanEvaluator(modelData);
   }, [modelData]);
@@ -74,7 +151,6 @@ export function App() {
         Math.max(-0.8, Math.min(0.8, prev[2] + dz)),
       ];
 
-      // Strumieniowa adaptacja wag KAN (Streaming ALS w locie)
       const N_samples = 60;
       for (let i = 0; i < N_samples; i++) {
         const sx = (Math.random() - 0.5) * 1.8;
@@ -92,7 +168,6 @@ export function App() {
         evaluator.updateOnlineStreaming(sx, sy, sz, target, 0.08);
       }
 
-      // Aktualizacja stanu wag dla shadera GPU
       setModelData((curr) => ({
         ...curr,
         lambdas: Array.from(evaluator.lambdas),
@@ -130,7 +205,7 @@ export function App() {
           </div>
         </div>
 
-        {/* Selektor Scenariuszy */}
+        {/* Selektor Scenariuszy (3 Opcje) */}
         <ScenarioSelector
           activeScenario={activeScenario}
           onSelectScenario={setActiveScenario}
@@ -139,7 +214,9 @@ export function App() {
         <div className="header-badges">
           <span className="badge badge-accent">
             <Sparkles size={12} />{" "}
-            {activeScenario === "robotics"
+            {activeScenario === "aerodynamics"
+              ? "Mesh-Free NACA CFD"
+              : activeScenario === "robotics"
               ? "120 FPS HOCBF Digital Twin"
               : isWebGPU !== false
               ? "WebGPU WGSL Compute (500k)"
@@ -155,6 +232,7 @@ export function App() {
       <main className="app-main">
         {/* Widok 3D Canvas w zależności od aktywnego scenariusza */}
         <div className="viewport-container">
+          {/* Scenariusz 1: WebGPU Swarm */}
           <div
             style={{
               width: "100%",
@@ -182,6 +260,7 @@ export function App() {
             />
           </div>
 
+          {/* Scenariusz 2: Robotics CBF Drone */}
           <div
             style={{
               width: "100%",
@@ -207,6 +286,30 @@ export function App() {
             />
           </div>
 
+          {/* Scenariusz 3: Aerodynamics CFD Wind Tunnel */}
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              display: activeScenario === "aerodynamics" ? "block" : "none",
+            }}
+          >
+            <AerodynamicsCFDScenario
+              aoaDeg={aoaDeg}
+              uInf={uInf}
+              airfoilConfig={airfoilConfig}
+              showStreamlines={showStreamlines}
+              showPressureMap={showPressureMap}
+              showVectors={showVectors}
+              showSmokeParticles={showSmokeParticles}
+              streamlineDensity={streamlineDensity}
+              onTelemetryUpdate={handleAeroTelemetry}
+            />
+          </div>
+
           {/* Nakładka telemetryczna */}
           <TelemetryOverlay
             mode={activeScenario}
@@ -219,6 +322,7 @@ export function App() {
               isWebGPU,
             }}
             robotics={roboticsTelemetry}
+            aerodynamics={aerodynamicsTelemetry}
           />
         </div>
 
@@ -265,6 +369,25 @@ export function App() {
               patrolMode,
               setPatrolMode,
               onResetDrone: handleResetDrone,
+            }}
+            aerodynamics={{
+              aoaDeg,
+              setAoaDeg,
+              uInf,
+              setUInf,
+              airfoilConfig,
+              setAirfoilConfig,
+              showStreamlines,
+              setShowStreamlines,
+              showPressureMap,
+              setShowPressureMap,
+              showVectors,
+              setShowVectors,
+              showSmokeParticles,
+              setShowSmokeParticles,
+              streamlineDensity,
+              setStreamlineDensity,
+              onResetTunnel: handleResetTunnel,
             }}
           />
         </aside>

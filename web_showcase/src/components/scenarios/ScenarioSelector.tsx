@@ -1,7 +1,7 @@
 import React from "react";
-import { ShieldCheck, Cpu, Navigation } from "lucide-react";
+import { ShieldCheck, Cpu, Navigation, Wind } from "lucide-react";
 
-export type ScenarioType = "swarm" | "robotics";
+export type ScenarioType = "swarm" | "robotics" | "aerodynamics";
 
 interface ScenarioSelectorProps {
   activeScenario: ScenarioType;
@@ -43,6 +43,24 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
           {activeScenario === "robotics" && (
             <span className="tab-pill-badge" style={{ background: "rgba(16, 185, 129, 0.2)", color: "var(--emerald-primary)", borderColor: "rgba(16, 185, 129, 0.4)" }}>
               <ShieldCheck size={11} /> 0% Collision
+            </span>
+          )}
+        </button>
+
+        <button
+          className={`scenario-tab-btn ${activeScenario === "aerodynamics" ? "tab-active" : ""}`}
+          onClick={() => onSelectScenario("aerodynamics")}
+        >
+          <div className="tab-icon-wrapper">
+            <Wind size={15} className="tab-icon" />
+          </div>
+          <div className="tab-text-group">
+            <span className="tab-title">3. Aerodynamics CFD</span>
+            <span className="tab-subtitle">Mesh-Free NACA &bull; 0 Epochs</span>
+          </div>
+          {activeScenario === "aerodynamics" && (
+            <span className="tab-pill-badge" style={{ background: "rgba(6, 182, 212, 0.2)", color: "var(--cyan-primary)", borderColor: "rgba(6, 182, 212, 0.4)" }}>
+              &lt; 2 ms
             </span>
           )}
         </button>
