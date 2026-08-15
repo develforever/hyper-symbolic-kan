@@ -487,6 +487,110 @@ void evaluate_cp_kan_gradient_batch(
     }
 }
 
+void project_chebyshev_modal_batch(
+    const double* __restrict nodal_core,
+    const double* __restrict V_inv,
+    int r_prev,
+    int K1,
+    int r_next,
+    double* __restrict modal_core_out
+) {
+    #pragma omp parallel for schedule(static) if(r_prev > 4)
+    for (int r = 0; r < r_prev; ++r) {
+        for (int k = 0; k < K1; ++k) {
+            const double* v_row = V_inv + k * K1;
+            double* out_rk = modal_core_out + (r * K1 + k) * r_next;
+            
+            for (int s = 0; s < r_next; ++s) {
+                double acc = 0.0;
+                #pragma loop(ivdep)
+                for (int i = 0; i < K1; ++i) {
+                    acc += v_row[i] * nodal_core[(r * K1 + i) * r_next + s];
+                }
+                out_rk[s] = acc;
+            }
+        }
+    }
+}
+
+void build_dmrg_normal_equations_batch(
+    const double* __restrict L_prev,
+    const double* __restrict T_d,
+    const double* __restrict T_d1,
+    const double* __restrict R_next,
+    const double* __restrict Y,
+    int N,
+    int r_prev,
+    int K1,
+    int r_next,
+    double alpha,
+    double* __restrict A_out,
+    double* __restrict B_out
+) {
+    const int P = r_prev * K1 * K1 * r_next;
+    std::memset(A_out, 0, P * P * sizeof(double));
+    std::memset(B_out, 0, P * sizeof(double));
+
+    #pragma omp parallel
+    {
+        std::vector<double> local_A(P * P, 0.0);
+        std::vector<double> local_B(P, 0.0);
+        std::vector<double> phi(P, 0.0);
+
+        #pragma omp for schedule(static)
+        for (int n = 0; n < N; ++n) {
+            const double y_n = Y[n];
+            const double* l_ptr = L_prev + n * r_prev;
+            const double* t1_ptr = T_d + n * K1;
+            const double* t2_ptr = T_d1 + n * K1;
+            const double* r_ptr = R_next + n * r_next;
+
+            int p_idx = 0;
+            for (int rp = 0; rp < r_prev; ++rp) {
+                const double l_val = l_ptr[rp];
+                for (int k1 = 0; k1 < K1; ++k1) {
+                    const double t1_val = l_val * t1_ptr[k1];
+                    for (int k2 = 0; k2 < K1; ++k2) {
+                        const double mid_val = t1_val * t2_ptr[k2];
+                        #pragma loop(ivdep)
+                        for (int rn = 0; rn < r_next; ++rn) {
+                            phi[p_idx++] = mid_val * r_ptr[rn];
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < P; ++i) {
+                local_B[i] += phi[i] * y_n;
+            }
+
+            for (int i = 0; i < P; ++i) {
+                const double phi_i = phi[i];
+                double* a_row = local_A.data() + i * P;
+                #pragma loop(ivdep)
+                for (int j = 0; j < P; ++j) {
+                    a_row[j] += phi_i * phi[j];
+                }
+            }
+        }
+
+        #pragma omp critical
+        {
+            for (int i = 0; i < P * P; ++i) {
+                A_out[i] += local_A[i];
+            }
+            for (int i = 0; i < P; ++i) {
+                B_out[i] += local_B[i];
+            }
+        }
+    }
+
+    // Add regularization alpha to diagonal of A_out
+    for (int i = 0; i < P; ++i) {
+        A_out[i * P + i] += alpha;
+    }
+}
+
 } // namespace hs_kan
 
 // C ABI compatibility wrappers for backwards compatibility

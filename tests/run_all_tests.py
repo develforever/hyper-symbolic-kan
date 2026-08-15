@@ -28,6 +28,13 @@ from tests.test_cpp_kernels import (
     test_cpp_throughput_and_latency_benchmark,
     test_gil_release_and_concurrency
 )
+from tests.test_tt_cross import (
+    test_maxvol_submatrix_selection,
+    test_tt_cross_reconstruction_20d,
+    test_tt_cross_high_dimensional_50d,
+    test_dmrg_2site_rank_adaptation,
+    test_cpp_kernels_stage_b_precision
+)
 
 def main():
     print("=" * 75)
@@ -47,6 +54,12 @@ def main():
         ("CP-KAN Native C++ (nanobind) Gradient Precision (< 1e-10)", test_cp_kan_cpp_gradient_precision),
         ("Native C++ SIMD Throughput & Latency (> 1,500,000 pts/s)", test_cpp_throughput_and_latency_benchmark),
         ("Native C++ GIL Release & Concurrency (Multi-Threading)", test_gil_release_and_concurrency),
+        # Stage B: Advanced Tensor Solvers (TT-Cross, MaxVol & 2-Site DMRG)
+        ("MaxVol Submatrix Selection Accuracy & Volume Optimality", test_maxvol_submatrix_selection),
+        ("TT-Cross Continuous 20D Field Reconstruction (O(D R^2 K))", test_tt_cross_reconstruction_20d),
+        ("TT-Cross High-Dimensional 50D Scaling (< 1.0s)", test_tt_cross_high_dimensional_50d),
+        ("2-Site DMRG Dynamic Rank Adaptation & SVD Truncation", test_dmrg_2site_rank_adaptation),
+        ("Native C++ Stage B Kernels (Modal Projection & DMRG Normal)", test_cpp_kernels_stage_b_precision),
     ]
     
     passed = 0
