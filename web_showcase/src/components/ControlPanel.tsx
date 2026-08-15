@@ -1,5 +1,5 @@
 import React from "react";
-import { Layers, Shield, RotateCcw, Crosshair, Palette, Sliders } from "lucide-react";
+import { Layers, Shield, RotateCcw, Crosshair, Palette, Sliders, Cpu } from "lucide-react";
 
 interface ControlPanelProps {
   viewMode: "volume" | "swarm" | "dual";
@@ -16,6 +16,7 @@ interface ControlPanelProps {
   setColorScheme: (s: number) => void;
   flowSpeed: number;
   setFlowSpeed: (s: number) => void;
+  isWebGPU: boolean | null;
   onMoveObstacle: (dx: number, dy: number, dz: number) => void;
   onReset: () => void;
 }
@@ -35,11 +36,44 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   setColorScheme,
   flowSpeed,
   setFlowSpeed,
+  isWebGPU,
   onMoveObstacle,
   onReset,
 }) => {
   return (
     <div className="control-panel">
+      {/* Backend Status Card */}
+      <div className="panel-section">
+        <div className="section-title">
+          <Cpu size={16} />
+          <span>COMPUTE BACKEND</span>
+        </div>
+        <div
+          className={`guard-toggle-card ${
+            isWebGPU !== false ? "guard-active" : "guard-warning"
+          }`}
+          style={{ cursor: "default" }}
+        >
+          <div className="guard-info">
+            <span className="guard-title">
+              {isWebGPU !== false
+                ? "WEBGPU WGSL PIPELINE"
+                : "WEBGL2 / CPU FALLBACK"}
+            </span>
+            <span className="guard-desc">
+              {isWebGPU !== false
+                ? "Zero-Copy VRAM StorageBuffer (Up to 500k Agents @ 60 FPS)"
+                : "Single-thread JS Evaluator (Capped at 15k Agents)"}
+            </span>
+          </div>
+          <div
+            className={`switch-indicator ${
+              isWebGPU !== false ? "switch-on" : "switch-warn"
+            }`}
+          ></div>
+        </div>
+      </div>
+
       <div className="panel-section">
         <div className="section-title">
           <Layers size={16} />
@@ -56,7 +90,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             className={`btn-toggle ${viewMode === "swarm" ? "active" : ""}`}
             onClick={() => setViewMode("swarm")}
           >
-            Swarm (10k)
+            Swarm ({numAgents >= 1000 ? `${(numAgents / 1000).toFixed(0)}k` : numAgents})
           </button>
           <button
             className={`btn-toggle ${viewMode === "dual" ? "active" : ""}`}
@@ -73,12 +107,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           <span>SAFETY INVARIANTS (MCT-NSE)</span>
         </div>
         <div
-          className={`guard-toggle-card ${safetyGuardActive ? "guard-active" : "guard-inactive"}`}
+          className={`guard-toggle-card ${
+            safetyGuardActive ? "guard-active" : "guard-inactive"
+          }`}
           onClick={() => setSafetyGuardActive(!safetyGuardActive)}
         >
           <div className="guard-info">
             <span className="guard-title">
-              {safetyGuardActive ? "CATEGORY GUARD: ENGAGED" : "UNFILTERED NEURAL: DANGER"}
+              {safetyGuardActive
+                ? "CATEGORY GUARD: ENGAGED"
+                : "UNFILTERED NEURAL: DANGER"}
             </span>
             <span className="guard-desc">
               {safetyGuardActive
@@ -86,7 +124,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 : "No boundary enforcement (Raw neural violations)"}
             </span>
           </div>
-          <div className={`switch-indicator ${safetyGuardActive ? "switch-on" : "switch-off"}`}></div>
+          <div
+            className={`switch-indicator ${
+              safetyGuardActive ? "switch-on" : "switch-off"
+            }`}
+          ></div>
         </div>
       </div>
 
@@ -104,12 +146,28 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           <input
             type="range"
             min={1000}
-            max={20000}
-            step={1000}
+            max={isWebGPU === false ? 15000 : 500000}
+            step={isWebGPU === false ? 1000 : 5000}
             value={numAgents}
             onChange={(e) => setNumAgents(parseInt(e.target.value))}
             className="custom-slider"
           />
+
+          {/* Szybkie presety agentów */}
+          {isWebGPU !== false && (
+            <div className="preset-row" style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
+              {[10000, 50000, 100000, 250000, 500000].map((preset) => (
+                <button
+                  key={preset}
+                  className={`palette-btn ${numAgents === preset ? "palette-active" : ""}`}
+                  style={{ flex: 1, padding: "4px 2px", fontSize: "9.5px", textAlign: "center" }}
+                  onClick={() => setNumAgents(preset)}
+                >
+                  {preset >= 1000 ? `${preset / 1000}k` : preset}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="slider-item">

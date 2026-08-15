@@ -1,9 +1,10 @@
-import React, { useRef, useMemo, useEffect } from "react";
+import React, { useRef, useMemo, useEffect, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { createKanShaderMaterial } from "../shaders/kanVolumeShader";
 import { SwarmSimulation } from "./SwarmSimulation";
+import { WebGPUSwarmVisualizer } from "./WebGPUSwarmVisualizer";
 import { KanEvaluator, type KANModelData } from "../engine/kanEvaluator";
 
 interface KanFieldVisualizerProps {
@@ -19,7 +20,22 @@ interface KanFieldVisualizerProps {
   noiseAmount: number;
   obstaclePos: [number, number, number];
   onViolationCount: (violations: number) => void;
+  onWebGPUStatus?: (supported: boolean) => void;
 }
+
+const CameraSync: React.FC<{
+  matrixRef: React.MutableRefObject<Float32Array>;
+}> = ({ matrixRef }) => {
+  const tempMat = useMemo(() => new THREE.Matrix4(), []);
+
+  useFrame(({ camera }) => {
+    camera.updateMatrixWorld();
+    tempMat.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    matrixRef.current.set(tempMat.elements);
+  });
+
+  return null;
+};
 
 const VolumeBox: React.FC<{
   modelData: KANModelData;
@@ -72,9 +88,24 @@ export const KanFieldVisualizer: React.FC<KanFieldVisualizerProps> = ({
   noiseAmount,
   obstaclePos,
   onViolationCount,
+  onWebGPUStatus,
 }) => {
+  const [webGpuAvailable, setWebGpuAvailable] = useState<boolean | null>(null);
+  const viewProjMatrixRef = useRef<Float32Array>(new Float32Array(16));
+
+  const handleWebGPUStatus = (supported: boolean) => {
+    setWebGpuAvailable(supported);
+    if (onWebGPUStatus) {
+      onWebGPUStatus(supported);
+    }
+  };
+
+  const showSwarm = viewMode === "swarm" || viewMode === "dual";
+  const showVolume = viewMode === "volume" || viewMode === "dual";
+
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      {/* 3D Scena Three.js (SDF Volume, Boundary, Invariants, Obstacle, OrbitControls) */}
       <Canvas
         gl={{
           antialias: true,
@@ -88,6 +119,7 @@ export const KanFieldVisualizer: React.FC<KanFieldVisualizerProps> = ({
           maxDistance={8.0}
           minDistance={1.2}
         />
+        <CameraSync matrixRef={viewProjMatrixRef} />
 
         {/* Oświetlenie sceny */}
         <ambientLight intensity={0.4} />
@@ -95,7 +127,7 @@ export const KanFieldVisualizer: React.FC<KanFieldVisualizerProps> = ({
         <directionalLight position={[-3, -2, -3]} intensity={0.3} color="#4080ff" />
 
         {/* Wolumetryczne pole skalarne KAN (Raymarching bez siatki) */}
-        {(viewMode === "volume" || viewMode === "dual") && (
+        {showVolume && (
           <VolumeBox
             modelData={modelData}
             isoLevel={isoLevel}
@@ -104,11 +136,11 @@ export const KanFieldVisualizer: React.FC<KanFieldVisualizerProps> = ({
           />
         )}
 
-        {/* Symulacja roju 10k cząstek */}
-        {(viewMode === "swarm" || viewMode === "dual") && (
+        {/* WebGL2 CPU Fallback (Tylko jeśli WebGPU nie jest dostępne) */}
+        {showSwarm && webGpuAvailable === false && (
           <SwarmSimulation
             evaluator={evaluator}
-            numAgents={numAgents}
+            numAgents={Math.min(numAgents, 15000)}
             safetyGuardActive={safetyGuardActive}
             flowSpeed={flowSpeed}
             noiseAmount={noiseAmount}
@@ -145,6 +177,22 @@ export const KanFieldVisualizer: React.FC<KanFieldVisualizerProps> = ({
           />
         </mesh>
       </Canvas>
+
+      {/* Natywny WebGPU Compute Shader Swarm Canvas (100k - 500k Agentów Zero-Copy) */}
+      {showSwarm && (
+        <WebGPUSwarmVisualizer
+          modelData={modelData}
+          numAgents={numAgents}
+          flowSpeed={flowSpeed}
+          noiseAmount={noiseAmount}
+          safetyGuardActive={safetyGuardActive}
+          colorScheme={colorScheme}
+          obstaclePos={obstaclePos}
+          viewProjMatrixRef={viewProjMatrixRef}
+          onViolationCount={onViolationCount}
+          onWebGPUStatus={handleWebGPUStatus}
+        />
+      )}
     </div>
   );
 };

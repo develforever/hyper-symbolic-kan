@@ -10,7 +10,7 @@ export function App() {
   const [modelData, setModelData] = useState<KANModelData>(initialWeights as unknown as KANModelData);
   const [viewMode, setViewMode] = useState<"volume" | "swarm" | "dual">("dual");
   const [safetyGuardActive, setSafetyGuardActive] = useState<boolean>(true);
-  const [numAgents, setNumAgents] = useState<number>(8000);
+  const [numAgents, setNumAgents] = useState<number>(100000);
   const [isoLevel, setIsoLevel] = useState<number>(0.10);
   const [density, setDensity] = useState<number>(3.5);
   const [colorScheme, setColorScheme] = useState<number>(1); // Cyan Steel
@@ -18,6 +18,7 @@ export function App() {
   const noiseAmount = 0.05;
   const [violations, setViolations] = useState<number>(0);
   const [obstaclePos, setObstaclePos] = useState<[number, number, number]>([0.4, -0.25, 0.1]);
+  const [isWebGPU, setIsWebGPU] = useState<boolean | null>(null);
 
   const evaluator = useMemo(() => {
     return new KanEvaluator(modelData);
@@ -32,7 +33,7 @@ export function App() {
         Math.max(-0.8, Math.min(0.8, prev[2] + dz)),
       ];
 
-      // Strumieniowa adaptacja wag KAN (Streaming ALS w locie w JS!)
+      // Strumieniowa adaptacja wag KAN (Streaming ALS w locie)
       const N_samples = 60;
       for (let i = 0; i < N_samples; i++) {
         const sx = (Math.random() - 0.5) * 1.8;
@@ -63,8 +64,8 @@ export function App() {
   const handleReset = useCallback(() => {
     setModelData(initialWeights as unknown as KANModelData);
     setObstaclePos([0.4, -0.25, 0.1]);
-    setIsoLevel(0.35);
-    setDensity(2.4);
+    setIsoLevel(0.10);
+    setDensity(3.5);
     setFlowSpeed(1.0);
     setSafetyGuardActive(true);
   }, []);
@@ -85,7 +86,7 @@ export function App() {
 
         <div className="header-badges">
           <span className="badge badge-accent">
-            <Sparkles size={12} /> WebGL / WebGPU Shader
+            <Sparkles size={12} /> {isWebGPU !== false ? "WebGPU WGSL Compute (500k)" : "WebGL2 Fallback"}
           </span>
           <span className="badge badge-mono">
             <Terminal size={12} /> 0 Backprop Epochs
@@ -110,6 +111,7 @@ export function App() {
             noiseAmount={noiseAmount}
             obstaclePos={obstaclePos}
             onViolationCount={setViolations}
+            onWebGPUStatus={setIsWebGPU}
           />
 
           {/* Nakładka telemetryczna */}
@@ -119,6 +121,7 @@ export function App() {
             numAgents={numAgents}
             violations={violations}
             safetyGuardActive={safetyGuardActive}
+            isWebGPU={isWebGPU}
           />
         </div>
 
@@ -139,6 +142,7 @@ export function App() {
             setColorScheme={setColorScheme}
             flowSpeed={flowSpeed}
             setFlowSpeed={setFlowSpeed}
+            isWebGPU={isWebGPU}
             onMoveObstacle={handleMoveObstacle}
             onReset={handleReset}
           />

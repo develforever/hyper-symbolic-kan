@@ -355,6 +355,11 @@ body, html {
   border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
+.guard-warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
 .guard-info {
   display: flex;
   flex-direction: column;
@@ -389,6 +394,11 @@ body, html {
 .switch-off {
   background: var(--red-primary);
   box-shadow: 0 0 10px var(--red-primary);
+}
+
+.switch-warn {
+  background: var(--amber-primary);
+  box-shadow: 0 0 10px var(--amber-primary);
 }
 
 /* Slidery */
