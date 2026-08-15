@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, Zap, Gauge, Layers, Crosshair, Wind, Activity, TrendingUp, BarChart3, AlertTriangle, Cpu } from "lucide-react";
+import { ShieldCheck, Zap, Gauge, Layers, Crosshair, Wind, Activity, TrendingUp, BarChart3, AlertTriangle, Cpu, Flame, Heart } from "lucide-react";
 import { type RiskEngineTelemetry } from "../engine/financialRiskEngine";
+import { type CardioTelemetry } from "../engine/cardioElectrophysiologyEngine";
 
 export interface SwarmTelemetryProps {
   rank: number;
@@ -40,11 +41,12 @@ export interface AerodynamicsTelemetryProps {
 }
 
 export interface TelemetryOverlayProps {
-  mode: "swarm" | "robotics" | "aerodynamics" | "financialRisk";
+  mode: "swarm" | "robotics" | "aerodynamics" | "financialRisk" | "cardio";
   swarm?: SwarmTelemetryProps;
   robotics?: RoboticsTelemetryProps;
   aerodynamics?: AerodynamicsTelemetryProps;
   financialRisk?: RiskEngineTelemetry;
+  cardio?: CardioTelemetry;
 }
 
 export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
@@ -53,6 +55,7 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
   robotics,
   aerodynamics,
   financialRisk,
+  cardio,
 }) => {
   const [fps, setFps] = useState(60);
   const [frameTime, setFrameTime] = useState(16.6);
@@ -79,6 +82,147 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
   }, []);
+
+  // Scenariusz 5: Cardio Electrophysiology & Real-Time EKG Showcase
+  if (mode === "cardio" && cardio) {
+    const tel = cardio;
+    const isSafe = !tel.isArrhythmia;
+
+    return (
+      <div className="telemetry-panel">
+        <div className="telemetry-header">
+          <div className="status-dot-container">
+            <span
+              className="status-dot"
+              style={{
+                background: tel.isArrhythmia ? "var(--red-primary)" : "var(--emerald-primary)",
+                boxShadow: tel.isArrhythmia ? "0 0 10px var(--red-primary)" : "0 0 10px var(--emerald-primary)",
+                animation: tel.isArrhythmia ? "pulse 0.8s infinite ease-in-out" : "pulse 2s infinite ease-in-out",
+              }}
+            ></span>
+            <span className="telemetry-title">
+              MESH-FREE CARDIO ELECTROPHYSIOLOGY &bull; 12-LEAD EKG
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <span
+              className="badge-zero-epochs"
+              style={{
+                background: tel.isArrhythmia ? "rgba(239, 68, 68, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                color: tel.isArrhythmia ? "var(--red-primary)" : "var(--emerald-primary)",
+                borderColor: tel.isArrhythmia ? "rgba(239, 68, 68, 0.3)" : "rgba(16, 185, 129, 0.3)",
+              }}
+            >
+              {tel.rhythmName}
+            </span>
+            <span
+              className="badge-zero-epochs"
+              style={{
+                background: "rgba(6, 182, 212, 0.15)",
+                color: "var(--cyan-primary)",
+                borderColor: "rgba(6, 182, 212, 0.3)",
+              }}
+            >
+              &lt; 18 KB KAN (17,600&times;)
+            </span>
+          </div>
+        </div>
+
+        <div className="telemetry-grid">
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Zap size={14} className="icon-amber" />
+              <span>PDE SOLVER LATENCY</span>
+            </div>
+            <div className="telemetry-card-val text-amber">
+              {tel.evalTimeMs.toFixed(2)} <span className="telemetry-unit">ms (120 FPS)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Activity size={14} className={isSafe ? "icon-emerald" : "icon-red"} />
+              <span>HEART RATE (BPM)</span>
+            </div>
+            <div className={`telemetry-card-val ${isSafe ? "text-emerald" : "text-red"}`}>
+              {tel.heartRateBpm} <span className="telemetry-unit">BPM ({tel.qrsDurationMs} ms QRS)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Heart size={14} className="icon-cyan" />
+              <span>R-WAVE AMPLITUDE (LEAD {tel.activeLead})</span>
+            </div>
+            <div className="telemetry-card-val text-cyan">
+              {tel.rWaveAmplitudeMv.toFixed(2)} <span className="telemetry-unit">mV (Peak)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Crosshair size={14} className="icon-cyan" />
+              <span>3D DIPOLE MOMENT |P(t)|</span>
+            </div>
+            <div className="telemetry-card-val text-cyan">
+              {tel.dipoleMagnitude.toFixed(3)} <span className="telemetry-unit">mV&middot;m (VCG)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Wind size={14} className="icon-emerald" />
+              <span>CONDUCTION VELOCITY</span>
+            </div>
+            <div className="telemetry-card-val text-emerald">
+              {tel.conductionVelocityMs.toFixed(2)} <span className="telemetry-unit">m/s (&sigma;<sub>fiber</sub>)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Flame size={14} className={tel.scarCount > 0 ? "icon-amber" : "icon-cyan"} />
+              <span>RF ABLATION SCARS</span>
+            </div>
+            <div className={`telemetry-card-val ${tel.scarCount > 0 ? "text-amber" : "text-cyan"}`}>
+              {tel.scarCount} <span className="telemetry-unit">Lesions (Blocked D&rarr;0)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Layers size={14} className="icon-amber" />
+              <span>KAN TENSOR COMPRESSION</span>
+            </div>
+            <div className="telemetry-card-val text-amber">
+              14.2 KB <span className="telemetry-unit">vs 250 MB FEM (17,600&times;)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <ShieldCheck size={14} className={isSafe ? "icon-emerald" : "icon-red"} />
+              <span>HEMODYNAMIC STABILITY</span>
+            </div>
+            <div className={`telemetry-card-val ${isSafe ? "text-emerald" : "text-red"}`}>
+              {isSafe ? "ORGANIZED SINUS" : tel.isFibrillation ? "CRITICAL VF" : "TACHYCARDIA VT"}
+            </div>
+          </div>
+        </div>
+
+        <div className="math-proof-box">
+          <div className="math-label">
+            ALIEV-PANFILOV ANISOTROPIC REACTION-DIFFUSION &amp; SYNTHETIC EKG DIPOLE:
+          </div>
+          <div className="math-formula">
+            &part;v/&part;t = &nabla;&middot;(D(x)&nabla;v) - kv(v-a)(v-1) - vw &nbsp;&bull;&nbsp;
+            P(t) = &int; &nabla;v dx &nbsp;&bull;&nbsp;
+            V<sub>lead</sub>(t) = P(t)&middot;c<sub>lead</sub>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Scenariusz 4: 20D Financial Risk & Analytical Greeks Engine
   if (mode === "financialRisk" && financialRisk) {

@@ -15,10 +15,17 @@ import {
   Eye,
   TrendingUp,
   AlertTriangle,
+  Flame,
+  Zap,
+  Heart,
 } from "lucide-react";
 import { type ScenarioType } from "./scenarios/ScenarioSelector";
 import { type NACAProfileConfig } from "../engine/aerodynamicsCfdEngine";
 import { ASSETS_20D, type MarketCrashPreset } from "../engine/financialRiskEngine";
+import {
+  type CardioRhythmPreset,
+  type ECGLead,
+} from "../engine/cardioElectrophysiologyEngine";
 
 interface SwarmControlProps {
   viewMode: "volume" | "swarm" | "dual";
@@ -104,12 +111,38 @@ export interface FinancialRiskControlProps {
   onResetRisk: () => void;
 }
 
+export interface CardioControlProps {
+  rhythmPreset: CardioRhythmPreset;
+  setRhythmPreset: (preset: CardioRhythmPreset) => void;
+  conductionVelocity: number;
+  setConductionVelocity: (v: number) => void;
+  excitability: number;
+  setExcitability: (v: number) => void;
+  actionPotentialDuration: number;
+  setActionPotentialDuration: (v: number) => void;
+  anisotropyRatio: number;
+  setAnisotropyRatio: (v: number) => void;
+  ablationRadiusMm: number;
+  setAblationRadiusMm: (v: number) => void;
+  activeLead: ECGLead;
+  setActiveLead: (lead: ECGLead) => void;
+  showFiberVectors: boolean;
+  setShowFiberVectors: (v: boolean) => void;
+  showVcGDipole: boolean;
+  setShowVcGDipole: (v: boolean) => void;
+  showAblationScars: boolean;
+  setShowAblationScars: (v: boolean) => void;
+  onClearAblationScars: () => void;
+  onDefibrillationShock: () => void;
+}
+
 interface ControlPanelProps {
   activeScenario: ScenarioType;
   swarm: SwarmControlProps;
   robotics: RoboticsControlProps;
   aerodynamics: AerodynamicsControlProps;
   financialRisk: FinancialRiskControlProps;
+  cardio: CardioControlProps;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -118,7 +151,244 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   robotics,
   aerodynamics,
   financialRisk,
+  cardio,
 }) => {
+  // Scenariusz 5: Cardio Electrophysiology & Real-Time EKG Showcase
+  if (activeScenario === "cardio") {
+    const car = cardio;
+    const isArrhythmia = car.rhythmPreset === "VT" || car.rhythmPreset === "VF";
+
+    return (
+      <div className="control-panel">
+        {/* Status Silnika Cardio KAN */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Heart size={16} color="#ef4444" />
+            <span>CONTINUOUS CARDIO ELECTROPHYSIOLOGY</span>
+          </div>
+          <div
+            className={`guard-toggle-card ${isArrhythmia ? "guard-inactive" : "guard-active"}`}
+            style={{ cursor: "default" }}
+          >
+            <div className="guard-info">
+              <span className="guard-title">
+                {car.rhythmPreset === "SINUS"
+                  ? "NORMAL SINUS RHYTHM (72 BPM)"
+                  : car.rhythmPreset === "VT"
+                  ? "VENTRICULAR TACHYCARDIA (VT)"
+                  : car.rhythmPreset === "VF"
+                  ? "VENTRICULAR FIBRILLATION (VF)"
+                  : "SINUS BRADYCARDIA (38 BPM)"}
+              </span>
+              <span className="guard-desc">
+                Aliev-Panfilov Non-Linear PDE &bull; Chebyshev Anisotropic Fibers (&lt; 18 KB)
+              </span>
+            </div>
+            <div className={`switch-indicator ${isArrhythmia ? "switch-off" : "switch-on"}`}></div>
+          </div>
+        </div>
+
+        {/* Presety Rytmu */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Activity size={16} />
+            <span>CARDIAC RHYTHM PRESETS</span>
+          </div>
+          <div className="button-group" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            {[
+              { id: "SINUS", label: "Normal Sinus (NSR)" },
+              { id: "VT", label: "Ventricular Tachycardia" },
+              { id: "VF", label: "Ventricular Fibrillation" },
+              { id: "BRADYCARDIA", label: "Sinus Bradycardia" },
+            ].map((p) => (
+              <button
+                key={p.id}
+                className={`btn-toggle ${car.rhythmPreset === p.id ? "active" : ""}`}
+                style={car.rhythmPreset === p.id && (p.id === "VT" || p.id === "VF") ? { background: "#ef4444", color: "#fff" } : undefined}
+                onClick={() => car.setRhythmPreset(p.id as CardioRhythmPreset)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Narzędzie Ablacji RF i Defibrylacji */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Flame size={16} color="#f97316" />
+            <span>RF CATHETER ABLATION &amp; SHOCK</span>
+          </div>
+
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>RF Catheter Tip Radius</span>
+              <span className="slider-val text-amber">{car.ablationRadiusMm} mm</span>
+            </div>
+            <input
+              type="range"
+              min={3}
+              max={12}
+              step={1}
+              value={car.ablationRadiusMm}
+              onChange={(e) => car.setAblationRadiusMm(parseInt(e.target.value))}
+              className="custom-slider"
+            />
+            <div style={{ fontSize: "9.5px", color: "var(--text-dim)", marginTop: "4px" }}>
+              Click directly on ventricular wall to create non-conductive scar lesions &amp; sever reentry loops.
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <button
+              className="btn-drift"
+              style={{ padding: "8px", fontSize: "10.5px" }}
+              onClick={car.onClearAblationScars}
+            >
+              <RotateCcw size={13} /> Clear All Scars
+            </button>
+            <button
+              className="btn-drift"
+              style={{
+                padding: "8px",
+                fontSize: "10.5px",
+                background: "rgba(239, 68, 68, 0.2)",
+                color: "#ef4444",
+                borderColor: "rgba(239, 68, 68, 0.5)",
+                fontWeight: 700,
+              }}
+              onClick={car.onDefibrillationShock}
+            >
+              <Zap size={13} /> 200J Defibrillation
+            </button>
+          </div>
+        </div>
+
+        {/* Parametry Elektrofizjologiczne */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Sliders size={16} />
+            <span>TISSUE ELECTROPHYSIOLOGY</span>
+          </div>
+
+          {/* Conduction Velocity */}
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>Conduction Velocity (&sigma;<sub>fiber</sub>)</span>
+              <span className="slider-val text-cyan">{car.conductionVelocity.toFixed(2)} m/s</span>
+            </div>
+            <input
+              type="range"
+              min={0.5}
+              max={2.0}
+              step={0.05}
+              value={car.conductionVelocity}
+              onChange={(e) => car.setConductionVelocity(parseFloat(e.target.value))}
+              className="custom-slider"
+            />
+          </div>
+
+          {/* Fiber Anisotropy Ratio */}
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>Anisotropy (&sigma;<sub>fiber</sub> / &sigma;<sub>cross</sub>)</span>
+              <span className="slider-val text-emerald">{car.anisotropyRatio.toFixed(1)}&times;</span>
+            </div>
+            <input
+              type="range"
+              min={1.5}
+              max={6.0}
+              step={0.5}
+              value={car.anisotropyRatio}
+              onChange={(e) => car.setAnisotropyRatio(parseFloat(e.target.value))}
+              className="custom-slider"
+            />
+          </div>
+
+          {/* Excitability */}
+          <div className="slider-item">
+            <div className="slider-label-row">
+              <span>Tissue Excitability (k)</span>
+              <span className="slider-val text-amber">{car.excitability.toFixed(1)}</span>
+            </div>
+            <input
+              type="range"
+              min={5.0}
+              max={12.0}
+              step={0.5}
+              value={car.excitability}
+              onChange={(e) => car.setExcitability(parseFloat(e.target.value))}
+              className="custom-slider"
+            />
+          </div>
+        </div>
+
+        {/* Wybór Odprowadzenia EKG */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Activity size={16} />
+            <span>12-LEAD EKG SELECTION</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px" }}>
+            {(["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"] as ECGLead[]).map((lead) => (
+              <button
+                key={lead}
+                className={`palette-btn ${car.activeLead === lead ? "palette-active" : ""}`}
+                style={{ textAlign: "center", padding: "6px 2px", fontSize: "10px" }}
+                onClick={() => car.setActiveLead(lead)}
+              >
+                Lead {lead}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Warstwy Wizualizacji 3D */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Eye size={16} />
+            <span>3D VISUALIZATION OVERLAYS</span>
+          </div>
+
+          <div
+            className={`guard-toggle-card ${car.showVcGDipole ? "guard-active" : "guard-inactive"}`}
+            onClick={() => car.setShowVcGDipole(!car.showVcGDipole)}
+            style={{ marginBottom: "6px" }}
+          >
+            <div className="guard-info">
+              <span className="guard-title">3D VCG DIPOLE MOMENT P(t)</span>
+              <span className="guard-desc">Dynamic electrical dipole vector at cardiac centroid</span>
+            </div>
+            <div className={`switch-indicator ${car.showVcGDipole ? "switch-on" : ""}`}></div>
+          </div>
+
+          <div
+            className={`guard-toggle-card ${car.showFiberVectors ? "guard-active" : "guard-inactive"}`}
+            onClick={() => car.setShowFiberVectors(!car.showFiberVectors)}
+            style={{ marginBottom: "6px" }}
+          >
+            <div className="guard-info">
+              <span className="guard-title">CHEBYSHEV FIBER ORIENTATION</span>
+              <span className="guard-desc">Continuous transmural helix angle streamlines</span>
+            </div>
+            <div className={`switch-indicator ${car.showFiberVectors ? "switch-on" : ""}`}></div>
+          </div>
+
+          <div
+            className={`guard-toggle-card ${car.showAblationScars ? "guard-active" : "guard-inactive"}`}
+            onClick={() => car.setShowAblationScars(!car.showAblationScars)}
+          >
+            <div className="guard-info">
+              <span className="guard-title">RF ABLATION LESIONS</span>
+              <span className="guard-desc">Visual thermal rings &amp; non-conductive scar markers</span>
+            </div>
+            <div className={`switch-indicator ${car.showAblationScars ? "switch-on" : ""}`}></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Scenariusz 4: 20D Financial Risk & Analytical Greeks Engine
   if (activeScenario === "financialRisk") {
     const risk = financialRisk;

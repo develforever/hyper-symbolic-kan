@@ -1,7 +1,7 @@
 import React from "react";
-import { ShieldCheck, Cpu, Navigation, Wind, TrendingUp } from "lucide-react";
+import { ShieldCheck, Cpu, Navigation, Wind, TrendingUp, Activity } from "lucide-react";
 
-export type ScenarioType = "swarm" | "robotics" | "aerodynamics" | "financialRisk";
+export type ScenarioType = "swarm" | "robotics" | "aerodynamics" | "financialRisk" | "cardio";
 
 interface ScenarioSelectorProps {
   activeScenario: ScenarioType;
@@ -82,8 +82,27 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
             </span>
           )}
         </button>
+
+        <button
+          className={`scenario-tab-btn ${activeScenario === "cardio" ? "tab-active" : ""}`}
+          onClick={() => onSelectScenario("cardio")}
+        >
+          <div className="tab-icon-wrapper">
+            <Activity size={15} className="tab-icon" style={{ color: activeScenario === "cardio" ? "#ef4444" : undefined }} />
+          </div>
+          <div className="tab-text-group">
+            <span className="tab-title">5. Cardio Electrophysiology</span>
+            <span className="tab-subtitle">Mesh-Free Organ &amp; EKG &bull; RF Ablation</span>
+          </div>
+          {activeScenario === "cardio" && (
+            <span className="tab-pill-badge" style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444", borderColor: "rgba(239, 68, 68, 0.4)" }}>
+              &lt; 18 KB
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );
 };
+
 

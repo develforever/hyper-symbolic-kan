@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { KanFieldVisualizer } from "./components/KanFieldVisualizer";
 import { ControlPanel } from "./components/ControlPanel";
 import {
@@ -10,6 +10,7 @@ import { ScenarioSelector, type ScenarioType } from "./components/scenarios/Scen
 import { RoboticsCBFScenario } from "./components/scenarios/RoboticsCBFScenario";
 import { AerodynamicsCFDScenario } from "./components/scenarios/AerodynamicsCFDScenario";
 import { FinancialRisk20DScenario } from "./components/scenarios/FinancialRisk20DScenario";
+import { CardioElectrophysiologyScenario } from "./components/scenarios/CardioElectrophysiologyScenario";
 import { KanEvaluator, type KANModelData } from "./engine/kanEvaluator";
 import { RoboticsCBFEngine } from "./engine/roboticsCbfEngine";
 import { type NACAProfileConfig, type CFDSolverResult } from "./engine/aerodynamicsCfdEngine";
@@ -18,6 +19,12 @@ import {
   type MarketCrashPreset,
   type RiskEngineTelemetry,
 } from "./engine/financialRiskEngine";
+import {
+  CardioElectrophysiologyEngine,
+  type CardioTelemetry,
+  type CardioRhythmPreset,
+  type ECGLead,
+} from "./engine/cardioElectrophysiologyEngine";
 import initialWeights from "./data/initial_kan_weights.json";
 import { Sparkles, Terminal, Box } from "lucide-react";
 
@@ -105,6 +112,29 @@ export function App() {
   const [riskShowGreeksVectors, setRiskShowGreeksVectors] = useState<boolean>(true);
   const [riskShowCorrelationWeb, setRiskShowCorrelationWeb] = useState<boolean>(true);
   const [financialRiskTelemetry, setFinancialRiskTelemetry] = useState<RiskEngineTelemetry | undefined>(undefined);
+
+  // Stan Scenariusza 5: Mesh-Free Cardio Electrophysiology & Real-Time EKG Showcase
+  const [cardioRhythmPreset, setCardioRhythmPreset] = useState<CardioRhythmPreset>("SINUS");
+  const [cardioConductionVelocity, setCardioConductionVelocity] = useState<number>(1.2);
+  const [cardioExcitability, setCardioExcitability] = useState<number>(8.0);
+  const [cardioApd, setCardioApd] = useState<number>(240);
+  const [cardioAnisotropyRatio, setCardioAnisotropyRatio] = useState<number>(3.5);
+  const [cardioAblationRadiusMm, setCardioAblationRadiusMm] = useState<number>(6);
+  const [cardioActiveLead, setCardioActiveLead] = useState<ECGLead>("II");
+  const [cardioShowFiberVectors, setCardioShowFiberVectors] = useState<boolean>(false);
+  const [cardioShowVcGDipole, setCardioShowVcGDipole] = useState<boolean>(true);
+  const [cardioShowAblationScars, setCardioShowAblationScars] = useState<boolean>(true);
+  const [cardioTelemetry, setCardioTelemetry] = useState<CardioTelemetry | undefined>(undefined);
+  const cardioEngineRef = useRef<CardioElectrophysiologyEngine | null>(null);
+
+  const handleClearAblationScars = useCallback(() => {
+    cardioEngineRef.current?.clearAblationScars();
+  }, []);
+
+  const handleDefibrillationShock = useCallback(() => {
+    cardioEngineRef.current?.applyDefibrillationShock();
+    setCardioRhythmPreset("SINUS");
+  }, []);
 
   const riskEngine = useMemo(() => new FinancialRiskEngine(), []);
 
@@ -246,7 +276,9 @@ export function App() {
         <div className="header-badges">
           <span className="badge badge-accent">
             <Sparkles size={12} />{" "}
-            {activeScenario === "financialRisk"
+            {activeScenario === "cardio"
+              ? "Mesh-Free Cardio & 12-Lead EKG"
+              : activeScenario === "financialRisk"
               ? "20D TT-KAN Risk Engine"
               : activeScenario === "aerodynamics"
               ? "Mesh-Free NACA CFD"
@@ -370,6 +402,33 @@ export function App() {
             />
           </div>
 
+          {/* Scenariusz 5: Cardio Electrophysiology & Real-Time EKG */}
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              display: activeScenario === "cardio" ? "block" : "none",
+            }}
+          >
+            <CardioElectrophysiologyScenario
+              rhythmPreset={cardioRhythmPreset}
+              conductionVelocity={cardioConductionVelocity}
+              excitability={cardioExcitability}
+              actionPotentialDuration={cardioApd}
+              anisotropyRatio={cardioAnisotropyRatio}
+              ablationRadiusMm={cardioAblationRadiusMm}
+              activeLead={cardioActiveLead}
+              showFiberVectors={cardioShowFiberVectors}
+              showVcGDipole={cardioShowVcGDipole}
+              showAblationScars={cardioShowAblationScars}
+              onTelemetryUpdate={setCardioTelemetry}
+              engineRef={cardioEngineRef}
+            />
+          </div>
+
           {/* Nakładka telemetryczna */}
           <TelemetryOverlay
             mode={activeScenario}
@@ -384,6 +443,7 @@ export function App() {
             robotics={roboticsTelemetry}
             aerodynamics={aerodynamicsTelemetry}
             financialRisk={financialRiskTelemetry}
+            cardio={cardioTelemetry}
           />
         </div>
 
@@ -470,6 +530,30 @@ export function App() {
               showCorrelationWeb: riskShowCorrelationWeb,
               setShowCorrelationWeb: setRiskShowCorrelationWeb,
               onResetRisk: handleResetRisk,
+            }}
+            cardio={{
+              rhythmPreset: cardioRhythmPreset,
+              setRhythmPreset: setCardioRhythmPreset,
+              conductionVelocity: cardioConductionVelocity,
+              setConductionVelocity: setCardioConductionVelocity,
+              excitability: cardioExcitability,
+              setExcitability: setCardioExcitability,
+              actionPotentialDuration: cardioApd,
+              setActionPotentialDuration: setCardioApd,
+              anisotropyRatio: cardioAnisotropyRatio,
+              setAnisotropyRatio: setCardioAnisotropyRatio,
+              ablationRadiusMm: cardioAblationRadiusMm,
+              setAblationRadiusMm: setCardioAblationRadiusMm,
+              activeLead: cardioActiveLead,
+              setActiveLead: setCardioActiveLead,
+              showFiberVectors: cardioShowFiberVectors,
+              setShowFiberVectors: setCardioShowFiberVectors,
+              showVcGDipole: cardioShowVcGDipole,
+              setShowVcGDipole: setCardioShowVcGDipole,
+              showAblationScars: cardioShowAblationScars,
+              setShowAblationScars: setCardioShowAblationScars,
+              onClearAblationScars: handleClearAblationScars,
+              onDefibrillationShock: handleDefibrillationShock,
             }}
           />
         </aside>
