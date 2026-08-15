@@ -35,6 +35,17 @@ from tests.test_tt_cross import (
     test_dmrg_2site_rank_adaptation,
     test_cpp_kernels_stage_b_precision
 )
+from tests.test_torch_kan import (
+    test_continuous_kan_autograd_gradcheck,
+    test_tensor_train_kan_autograd_gradcheck,
+    test_continuous_kan_layer_forward_and_shapes,
+    test_tensor_train_kan_layer_forward_and_shapes,
+    test_torch_kan_optimization_loop,
+    test_tensor_train_kan_optimization_loop,
+    test_hybrid_als_gradient_fine_tuning,
+    test_hybrid_tt_cross_gradient_fine_tuning,
+    test_safetensors_serialization_roundtrip
+)
 
 def main():
     print("=" * 75)
@@ -60,6 +71,16 @@ def main():
         ("TT-Cross High-Dimensional 50D Scaling (< 1.0s)", test_tt_cross_high_dimensional_50d),
         ("2-Site DMRG Dynamic Rank Adaptation & SVD Truncation", test_dmrg_2site_rank_adaptation),
         ("Native C++ Stage B Kernels (Modal Projection & DMRG Normal)", test_cpp_kernels_stage_b_precision),
+        # Stage D: PyTorch Ecosystem & SafeTensors Integration
+        ("PyTorch ContinuousKANAutograd Gradcheck (< 1e-4)", test_continuous_kan_autograd_gradcheck),
+        ("PyTorch TensorTrainKANAutograd Gradcheck (< 1e-4)", test_tensor_train_kan_autograd_gradcheck),
+        ("PyTorch ContinuousKANLayer Forward & Multi-Batching", test_continuous_kan_layer_forward_and_shapes),
+        ("PyTorch TensorTrainKANLayer Forward & Multi-Batching", test_tensor_train_kan_layer_forward_and_shapes),
+        ("PyTorch ContinuousKANLayer Adam Optimizer Convergence", test_torch_kan_optimization_loop),
+        ("PyTorch TensorTrainKANLayer Adam Optimizer Convergence", test_tensor_train_kan_optimization_loop),
+        ("PyTorch Hybrid ALS -> Adam Gradient Fine-Tuning", test_hybrid_als_gradient_fine_tuning),
+        ("PyTorch Hybrid TT-Cross -> TensorTrainKANLayer Bridge", test_hybrid_tt_cross_gradient_fine_tuning),
+        ("SafeTensors Serialization & Metadata Header Roundtrip", test_safetensors_serialization_roundtrip),
     ]
     
     passed = 0

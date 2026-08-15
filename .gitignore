@@ -54,3 +54,6 @@ web_showcase/dist/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Agent metadata
+.agent/
