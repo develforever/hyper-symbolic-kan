@@ -268,3 +268,84 @@ class FastCPPKANEngine:
             grad[:, dim] = np.prod(term_evals, axis=2) @ lambdas_cont
             
         return grad
+
+    def project_chebyshev_modal(self, nodal_core: np.ndarray, V_inv: np.ndarray) -> np.ndarray:
+        r"""
+        Projekcja węzłowego rdzenia TT na współczynniki Czebyszewa: (V_inv @ Nodal).
+        nodal_core: (r_prev, K1, r_next)
+        V_inv: (K1, K1)
+        """
+        r_prev, K1, r_next = nodal_core.shape
+        assert V_inv.shape == (K1, K1)
+        
+        nodal_cont = np.ascontiguousarray(nodal_core, dtype=np.float64)
+        V_inv_cont = np.ascontiguousarray(V_inv, dtype=np.float64)
+
+        if self.has_native and _native_kernels is not None and hasattr(_native_kernels, "project_chebyshev_modal_batch"):
+            modal_out = np.empty((r_prev, K1, r_next), dtype=np.float64)
+            _native_kernels.project_chebyshev_modal_batch(
+                nodal_cont,
+                V_inv_cont,
+                r_prev,
+                K1,
+                r_next,
+                modal_out
+            )
+            return modal_out
+
+        # NumPy fallback
+        return np.einsum('ki, ris -> rks', V_inv_cont, nodal_cont)
+
+    def build_dmrg_normal_equations(
+        self,
+        L_prev: np.ndarray,
+        T_d: np.ndarray,
+        T_d1: np.ndarray,
+        R_next: np.ndarray,
+        Y: np.ndarray,
+        alpha: float = 1e-6
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        r"""
+        Akumulacja układu normalnego Tikhonova dla 2-Site DMRG w C++ (AVX2 + OpenMP):
+        A = Phi^T Phi + alpha * I
+        B = Phi^T Y
+        bez alokowania macierzy Phi o kształcie (N, P).
+        """
+        N, r_prev = L_prev.shape
+        _, K1 = T_d.shape
+        _, r_next = R_next.shape
+        P = r_prev * K1 * K1 * r_next
+
+        L_cont = np.ascontiguousarray(L_prev, dtype=np.float64)
+        T_d_cont = np.ascontiguousarray(T_d, dtype=np.float64)
+        T_d1_cont = np.ascontiguousarray(T_d1, dtype=np.float64)
+        R_cont = np.ascontiguousarray(R_next, dtype=np.float64)
+        Y_cont = np.ascontiguousarray(Y.ravel(), dtype=np.float64)
+
+        if self.has_native and _native_kernels is not None and hasattr(_native_kernels, "build_dmrg_normal_equations_batch"):
+            A_out = np.empty((P, P), dtype=np.float64)
+            B_out = np.empty(P, dtype=np.float64)
+            _native_kernels.build_dmrg_normal_equations_batch(
+                L_cont,
+                T_d_cont,
+                T_d1_cont,
+                R_cont,
+                Y_cont,
+                r_prev,
+                K1,
+                r_next,
+                alpha,
+                A_out,
+                B_out
+            )
+            return A_out, B_out
+
+        # NumPy fallback
+        mid_basis = (T_d_cont[:, :, None] * T_d1_cont[:, None, :]).reshape(N, K1 * K1)
+        Phi_left = (L_cont[:, :, None] * mid_basis[:, None, :]).reshape(N, r_prev * K1 * K1)
+        Phi = (Phi_left[:, :, None] * R_cont[:, None, :]).reshape(N, P)
+        
+        A = Phi.T @ Phi + alpha * np.eye(P)
+        B = Phi.T @ Y_cont
+        return A, B
+

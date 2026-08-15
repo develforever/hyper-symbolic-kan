@@ -8,12 +8,13 @@ from src.tdff_net.streaming_als import StreamingALSSolver
 from src.tdff_net.dr_tt_kan import DynamicRankTTKAN
 from src.tdff_net.dr_tt_als import DynamicRankTTALSSolver
 from src.tdff_net.sliding_domain import SlidingSpatialDomainWindow, NormalizedKANField
+from src.tdff_net.tt_cross import maxvol, TTCrossSolver
+from src.tdff_net.dmrg_kan import DMRGTTKANSolver
 
 __all__ = [
     "TDFFNet", "ClosedFormALSSolver", "TuckerTDFFNet", "TuckerALSSolver",
     "SymplecticKANEngine", "TensorTrainKAN", "TTALSSolver", "StreamingALSSolver",
     "DynamicRankTTKAN", "DynamicRankTTALSSolver",
-    "SlidingSpatialDomainWindow", "NormalizedKANField"
+    "SlidingSpatialDomainWindow", "NormalizedKANField",
+    "maxvol", "TTCrossSolver", "DMRGTTKANSolver"
 ]
-
-

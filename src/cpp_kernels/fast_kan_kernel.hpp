@@ -110,4 +110,30 @@ void evaluate_cp_kan_gradient_batch(
     double* __restrict grad_out
 );
 
+// 7. Szybka transformacja modalna Czebyszewa (Nodal -> Modal) dla rdzenia TT
+void project_chebyshev_modal_batch(
+    const double* __restrict nodal_core,
+    const double* __restrict V_inv,
+    int r_prev,
+    int K1,
+    int r_next,
+    double* __restrict modal_core_out
+);
+
+// 8. 2-Site DMRG Normal Equations Accumulator (Phi^T Phi i Phi^T Y) bez alokacji macierzy Phi
+void build_dmrg_normal_equations_batch(
+    const double* __restrict L_prev,
+    const double* __restrict T_d,
+    const double* __restrict T_d1,
+    const double* __restrict R_next,
+    const double* __restrict Y,
+    int N,
+    int r_prev,
+    int K1,
+    int r_next,
+    double alpha,
+    double* __restrict A_out,
+    double* __restrict B_out
+);
+
 } // namespace hs_kan

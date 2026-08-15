@@ -139,6 +139,69 @@ void py_evaluate_cp_kan_gradient_batch(
     );
 }
 
+void py_project_chebyshev_modal_batch(
+    nb::ndarray<const double, nb::c_contig, nb::device::cpu> nodal_core,
+    nb::ndarray<const double, nb::c_contig, nb::device::cpu> V_inv,
+    int r_prev,
+    int K1,
+    int r_next,
+    nb::ndarray<double, nb::c_contig, nb::device::cpu> modal_core_out
+) {
+    if (static_cast<int>(nodal_core.size()) < r_prev * K1 * r_next) {
+        throw std::invalid_argument("nodal_core size does not match r_prev * K1 * r_next");
+    }
+    if (static_cast<int>(V_inv.size()) < K1 * K1) {
+        throw std::invalid_argument("V_inv size does not match K1 * K1");
+    }
+    if (static_cast<int>(modal_core_out.size()) < r_prev * K1 * r_next) {
+        throw std::invalid_argument("modal_core_out size does not match r_prev * K1 * r_next");
+    }
+
+    const double* n_ptr = nodal_core.data();
+    const double* v_ptr = V_inv.data();
+    double* out_ptr = modal_core_out.data();
+
+    nb::gil_scoped_release release;
+    hs_kan::project_chebyshev_modal_batch(n_ptr, v_ptr, r_prev, K1, r_next, out_ptr);
+}
+
+void py_build_dmrg_normal_equations_batch(
+    nb::ndarray<const double, nb::c_contig, nb::device::cpu> L_prev,
+    nb::ndarray<const double, nb::c_contig, nb::device::cpu> T_d,
+    nb::ndarray<const double, nb::c_contig, nb::device::cpu> T_d1,
+    nb::ndarray<const double, nb::c_contig, nb::device::cpu> R_next,
+    nb::ndarray<const double, nb::c_contig, nb::device::cpu> Y,
+    int r_prev,
+    int K1,
+    int r_next,
+    double alpha,
+    nb::ndarray<double, nb::c_contig, nb::device::cpu> A_out,
+    nb::ndarray<double, nb::c_contig, nb::device::cpu> B_out
+) {
+    const int N = static_cast<int>(Y.size());
+    const int P = r_prev * K1 * K1 * r_next;
+
+    if (static_cast<int>(A_out.size()) < P * P) {
+        throw std::invalid_argument("A_out size must be at least P * P");
+    }
+    if (static_cast<int>(B_out.size()) < P) {
+        throw std::invalid_argument("B_out size must be at least P");
+    }
+
+    const double* l_ptr = L_prev.data();
+    const double* t1_ptr = T_d.data();
+    const double* t2_ptr = T_d1.data();
+    const double* r_ptr = R_next.data();
+    const double* y_ptr = Y.data();
+    double* a_ptr = A_out.data();
+    double* b_ptr = B_out.data();
+
+    nb::gil_scoped_release release;
+    hs_kan::build_dmrg_normal_equations_batch(
+        l_ptr, t1_ptr, t2_ptr, r_ptr, y_ptr, N, r_prev, K1, r_next, alpha, a_ptr, b_ptr
+    );
+}
+
 NB_MODULE(_cpp_kernels, m) {
     m.doc() = "Hyper-Symbolic KAN Ultra-Fast C++ / SIMD Kernels (nanobind + OpenMP)";
 
@@ -188,5 +251,34 @@ NB_MODULE(_cpp_kernels, m) {
         nb::arg("degree"),
         nb::arg("out_grad"),
         "High-throughput analytical gradient evaluation of CP-KAN fields in C++."
+    );
+
+    m.def(
+        "project_chebyshev_modal_batch",
+        &py_project_chebyshev_modal_batch,
+        nb::arg("nodal_core"),
+        nb::arg("V_inv"),
+        nb::arg("r_prev"),
+        nb::arg("K1"),
+        nb::arg("r_next"),
+        nb::arg("modal_core_out"),
+        "SIMD-accelerated modal Chebyshev basis projection (V_inv @ Nodal)."
+    );
+
+    m.def(
+        "build_dmrg_normal_equations_batch",
+        &py_build_dmrg_normal_equations_batch,
+        nb::arg("L_prev"),
+        nb::arg("T_d"),
+        nb::arg("T_d1"),
+        nb::arg("R_next"),
+        nb::arg("Y"),
+        nb::arg("r_prev"),
+        nb::arg("K1"),
+        nb::arg("r_next"),
+        nb::arg("alpha"),
+        nb::arg("A_out"),
+        nb::arg("B_out"),
+        "Direct multi-threaded 2-Site DMRG normal equations accumulator in C++."
     );
 }
