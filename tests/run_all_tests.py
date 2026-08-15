@@ -46,6 +46,15 @@ from tests.test_torch_kan import (
     test_hybrid_tt_cross_gradient_fine_tuning,
     test_safetensors_serialization_roundtrip
 )
+from tests.test_applications import (
+    test_chebyshev_second_derivative_analytical_exactness,
+    test_cbf_kinematic_single_agent_3d,
+    test_cbf_dynamic_hocbf_drone_flight,
+    test_cbf_multi_agent_swarm_avoidance,
+    test_poisson_solver_2d_analytical_benchmark,
+    test_poisson_solver_3d_zero_epochs,
+    test_poisson_high_dim_tensor_train
+)
 
 def main():
     print("=" * 75)
@@ -81,6 +90,14 @@ def main():
         ("PyTorch Hybrid ALS -> Adam Gradient Fine-Tuning", test_hybrid_als_gradient_fine_tuning),
         ("PyTorch Hybrid TT-Cross -> TensorTrainKANLayer Bridge", test_hybrid_tt_cross_gradient_fine_tuning),
         ("SafeTensors Serialization & Metadata Header Roundtrip", test_safetensors_serialization_roundtrip),
+        # Stage E: Industrial & Real-World Applications (Robotics CBF & Mesh-Free PDE)
+        ("Chebyshev 2nd Derivative Recurrence Exactness (< 1e-11)", test_chebyshev_second_derivative_analytical_exactness),
+        ("Robotics Kinematic 3D CBF Trajectory Planner (0% Collisions)", test_cbf_kinematic_single_agent_3d),
+        ("Robotics Dynamic HOCBF Drone Flight (Relative Degree 2)", test_cbf_dynamic_hocbf_drone_flight),
+        ("Robotics Multi-Agent Swarm Decentralized CBF (0% Violations)", test_cbf_multi_agent_swarm_avoidance),
+        ("Mesh-Free 2D Poisson Analytical Benchmark (< 1e-4 in 0 Epochs)", test_poisson_solver_2d_analytical_benchmark),
+        ("Mesh-Free 3D Poisson Spectral Solver (< 1e-4 in 0 Epochs)", test_poisson_solver_3d_zero_epochs),
+        ("High-Dimensional 4D TT-KAN Poisson Solver (ALS 0 Epochs)", test_poisson_high_dim_tensor_train),
     ]
     
     passed = 0
