@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, Zap, Cpu, Gauge } from "lucide-react";
+import { ShieldCheck, Zap, Gauge, Layers } from "lucide-react";
 
 interface TelemetryOverlayProps {
   rank: number;
@@ -7,6 +7,7 @@ interface TelemetryOverlayProps {
   numAgents: number;
   violations: number;
   safetyGuardActive: boolean;
+  isWebGPU?: boolean | null;
 }
 
 export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
@@ -15,6 +16,7 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
   numAgents,
   violations,
   safetyGuardActive,
+  isWebGPU,
 }) => {
   const [fps, setFps] = useState(60);
   const [frameTime, setFrameTime] = useState(16.6);
@@ -28,7 +30,7 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
       frameCount++;
       const now = performance.now();
       const delta = now - lastTime;
-      if (delta >= 500) {
+      if (delta >= 400) {
         const currentFps = Math.round((frameCount * 1000) / delta);
         setFps(currentFps);
         setFrameTime(parseFloat((1000 / Math.max(1, currentFps)).toFixed(1)));
@@ -42,8 +44,9 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
     return () => cancelAnimationFrame(animId);
   }, []);
 
-  const totalPointsPerSec = fps * numAgents;
-  const violationRate = safetyGuardActive ? 0.0 : (violations / Math.max(1, numAgents)) * 100;
+  const totalPointsPerSec = (fps * numAgents) / 1000000;
+  const violationRate = safetyGuardActive ? 0.0 : Math.min(100, (violations / Math.max(1, numAgents)) * 100);
+  const vramKb = ((numAgents * 32) / 1024).toFixed(0);
 
   return (
     <div className="telemetry-panel">
@@ -52,7 +55,19 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
           <span className="status-dot"></span>
           <span className="telemetry-title">HYPER-SYMBOLIC KAN ENGINE</span>
         </div>
-        <span className="badge-zero-epochs">0 GRADIENT EPOCHS</span>
+        <div style={{ display: "flex", gap: "6px" }}>
+          <span className="badge-zero-epochs">0 EPOCHS</span>
+          <span
+            className="badge-zero-epochs"
+            style={{
+              background: isWebGPU !== false ? "rgba(6, 182, 212, 0.15)" : "rgba(245, 158, 11, 0.15)",
+              color: isWebGPU !== false ? "var(--cyan-primary)" : "var(--amber-primary)",
+              borderColor: isWebGPU !== false ? "rgba(6, 182, 212, 0.3)" : "rgba(245, 158, 11, 0.3)",
+            }}
+          >
+            {isWebGPU !== false ? "WEBGPU WGSL" : "WEBGL2"}
+          </span>
+        </div>
       </div>
 
       <div className="telemetry-grid">
@@ -69,11 +84,13 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
         <div className="telemetry-card">
           <div className="telemetry-card-label">
             <Zap size={14} className="icon-amber" />
-            <span>THROUGHPUT</span>
+            <span>GPU THROUGHPUT</span>
           </div>
           <div className="telemetry-card-val text-amber">
-            {(totalPointsPerSec / 1000).toFixed(0)}k{" "}
-            <span className="telemetry-unit">evals / sec</span>
+            {totalPointsPerSec >= 1.0 ? totalPointsPerSec.toFixed(2) : (totalPointsPerSec * 1000).toFixed(0)}{" "}
+            <span className="telemetry-unit">
+              {totalPointsPerSec >= 1.0 ? "M evals/s" : "k evals/s"}
+            </span>
           </div>
         </div>
 
@@ -90,21 +107,20 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
 
         <div className="telemetry-card">
           <div className="telemetry-card-label">
-            <Cpu size={14} className="icon-blue" />
-            <span>COMPLEXITY</span>
+            <Layers size={14} className="icon-blue" />
+            <span>VRAM ZERO-COPY</span>
           </div>
           <div className="telemetry-card-val text-blue">
-            R={rank} · K={degree}{" "}
-            <span className="telemetry-unit">(3D Tensor CP)</span>
+            {vramKb} <span className="telemetry-unit">KB (STORAGE)</span>
           </div>
         </div>
       </div>
 
       <div className="math-proof-box">
-        <div className="math-label">ALGEBRAIC KAN FIELD FORMULATION:</div>
+        <div className="math-label">ALGEBRAIC KAN FIELD FORMULATION (R={rank}, K={degree}):</div>
         <div className="math-formula">
           f(x, y, z) = &sum;<sub>r=1</sub><sup>{rank}</sup> &lambda;<sub>r</sub> &middot; &phi;<sub>r</sub><sup>(x)</sup> &middot; &phi;<sub>r</sub><sup>(y)</sup> &middot; &phi;<sub>r</sub><sup>(z)</sup>
-          &nbsp;&nbsp;|&nbsp;&nbsp; &nabla;f &equiv; EXACT ANALYTIC GRADIENT
+          &nbsp;&nbsp;|&nbsp;&nbsp; &nabla;f &equiv; EXACT WGSL GRADIENT
         </div>
       </div>
     </div>
