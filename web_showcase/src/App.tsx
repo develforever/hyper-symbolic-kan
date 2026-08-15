@@ -9,15 +9,21 @@ import {
 import { ScenarioSelector, type ScenarioType } from "./components/scenarios/ScenarioSelector";
 import { RoboticsCBFScenario } from "./components/scenarios/RoboticsCBFScenario";
 import { AerodynamicsCFDScenario } from "./components/scenarios/AerodynamicsCFDScenario";
+import { FinancialRisk20DScenario } from "./components/scenarios/FinancialRisk20DScenario";
 import { KanEvaluator, type KANModelData } from "./engine/kanEvaluator";
 import { RoboticsCBFEngine } from "./engine/roboticsCbfEngine";
 import { type NACAProfileConfig, type CFDSolverResult } from "./engine/aerodynamicsCfdEngine";
+import {
+  FinancialRiskEngine,
+  type MarketCrashPreset,
+  type RiskEngineTelemetry,
+} from "./engine/financialRiskEngine";
 import initialWeights from "./data/initial_kan_weights.json";
 import { Sparkles, Terminal, Box } from "lucide-react";
 
 export function App() {
-  // Nawigacja Scenariuszy (1: Swarm, 2: Robotics, 3: Aerodynamics CFD)
-  const [activeScenario, setActiveScenario] = useState<ScenarioType>("aerodynamics");
+  // Nawigacja Scenariuszy (1: Swarm, 2: Robotics, 3: Aerodynamics CFD, 4: Financial Risk 20D)
+  const [activeScenario, setActiveScenario] = useState<ScenarioType>("financialRisk");
 
   // Stan Scenariusza 1: WebGPU Swarm & Continuous KAN
   const [modelData, setModelData] = useState<KANModelData>(initialWeights as unknown as KANModelData);
@@ -88,6 +94,20 @@ export function App() {
     isStalled: false,
   });
 
+  // Stan Scenariusza 4: 20D Financial Risk & Analytical Greeks Engine
+  const [riskAxisX, setRiskAxisX] = useState<number>(0); // NVDA
+  const [riskAxisY, setRiskAxisY] = useState<number>(7); // BTC
+  const [riskVolShock, setRiskVolShock] = useState<number>(1.0);
+  const [riskStressPreset, setRiskStressPreset] = useState<MarketCrashPreset>("EQUILIBRIUM");
+  const [riskState20D, setRiskState20D] = useState<Float64Array>(() => new Float64Array(20));
+  const [riskShowWireframe, setRiskShowWireframe] = useState<boolean>(true);
+  const [riskShowContourLines, setRiskShowContourLines] = useState<boolean>(false);
+  const [riskShowGreeksVectors, setRiskShowGreeksVectors] = useState<boolean>(true);
+  const [riskShowCorrelationWeb, setRiskShowCorrelationWeb] = useState<boolean>(true);
+  const [financialRiskTelemetry, setFinancialRiskTelemetry] = useState<RiskEngineTelemetry | undefined>(undefined);
+
+  const riskEngine = useMemo(() => new FinancialRiskEngine(), []);
+
   const handleAeroTelemetry = useCallback((res: CFDSolverResult) => {
     setAerodynamicsTelemetry({
       solveTimeMs: res.solveTimeMs,
@@ -123,6 +143,18 @@ export function App() {
     setShowVectors(true);
     setShowSmokeParticles(true);
     setStreamlineDensity(24);
+  }, []);
+
+  const handleResetRisk = useCallback(() => {
+    setRiskAxisX(0);
+    setRiskAxisY(7);
+    setRiskVolShock(1.0);
+    setRiskStressPreset("EQUILIBRIUM");
+    setRiskState20D(new Float64Array(20));
+    setRiskShowWireframe(true);
+    setRiskShowContourLines(false);
+    setRiskShowGreeksVectors(true);
+    setRiskShowCorrelationWeb(true);
   }, []);
 
   const evaluator = useMemo(() => {
@@ -205,7 +237,7 @@ export function App() {
           </div>
         </div>
 
-        {/* Selektor Scenariuszy (3 Opcje) */}
+        {/* Selektor Scenariuszy (4 Opcje) */}
         <ScenarioSelector
           activeScenario={activeScenario}
           onSelectScenario={setActiveScenario}
@@ -214,7 +246,9 @@ export function App() {
         <div className="header-badges">
           <span className="badge badge-accent">
             <Sparkles size={12} />{" "}
-            {activeScenario === "aerodynamics"
+            {activeScenario === "financialRisk"
+              ? "20D TT-KAN Risk Engine"
+              : activeScenario === "aerodynamics"
               ? "Mesh-Free NACA CFD"
               : activeScenario === "robotics"
               ? "120 FPS HOCBF Digital Twin"
@@ -310,6 +344,32 @@ export function App() {
             />
           </div>
 
+          {/* Scenariusz 4: 20D Financial Risk Engine */}
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              display: activeScenario === "financialRisk" ? "block" : "none",
+            }}
+          >
+            <FinancialRisk20DScenario
+              engine={riskEngine}
+              axisX={riskAxisX}
+              axisY={riskAxisY}
+              state20D={riskState20D}
+              volShock={riskVolShock}
+              stressPreset={riskStressPreset}
+              showWireframe={riskShowWireframe}
+              showContourLines={riskShowContourLines}
+              showGreeksVectors={riskShowGreeksVectors}
+              showCorrelationWeb={riskShowCorrelationWeb}
+              onTelemetryUpdate={setFinancialRiskTelemetry}
+            />
+          </div>
+
           {/* Nakładka telemetryczna */}
           <TelemetryOverlay
             mode={activeScenario}
@@ -323,6 +383,7 @@ export function App() {
             }}
             robotics={roboticsTelemetry}
             aerodynamics={aerodynamicsTelemetry}
+            financialRisk={financialRiskTelemetry}
           />
         </div>
 
@@ -389,6 +450,27 @@ export function App() {
               setStreamlineDensity,
               onResetTunnel: handleResetTunnel,
             }}
+            financialRisk={{
+              axisX: riskAxisX,
+              setAxisX: setRiskAxisX,
+              axisY: riskAxisY,
+              setAxisY: setRiskAxisY,
+              volShock: riskVolShock,
+              setVolShock: setRiskVolShock,
+              stressPreset: riskStressPreset,
+              setStressPreset: setRiskStressPreset,
+              state20D: riskState20D,
+              setState20D: setRiskState20D,
+              showWireframe: riskShowWireframe,
+              setShowWireframe: setRiskShowWireframe,
+              showContourLines: riskShowContourLines,
+              setShowContourLines: setRiskShowContourLines,
+              showGreeksVectors: riskShowGreeksVectors,
+              setShowGreeksVectors: setRiskShowGreeksVectors,
+              showCorrelationWeb: riskShowCorrelationWeb,
+              setShowCorrelationWeb: setRiskShowCorrelationWeb,
+              onResetRisk: handleResetRisk,
+            }}
           />
         </aside>
       </main>
@@ -397,3 +479,4 @@ export function App() {
 }
 
 export default App;
+

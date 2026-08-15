@@ -13,9 +13,12 @@ import {
   Wind,
   Compass,
   Eye,
+  TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
 import { type ScenarioType } from "./scenarios/ScenarioSelector";
 import { type NACAProfileConfig } from "../engine/aerodynamicsCfdEngine";
+import { ASSETS_20D, type MarketCrashPreset } from "../engine/financialRiskEngine";
 
 interface SwarmControlProps {
   viewMode: "volume" | "swarm" | "dual";
@@ -79,11 +82,34 @@ export interface AerodynamicsControlProps {
   onResetTunnel: () => void;
 }
 
+export interface FinancialRiskControlProps {
+  axisX: number;
+  setAxisX: (v: number) => void;
+  axisY: number;
+  setAxisY: (v: number) => void;
+  volShock: number;
+  setVolShock: (v: number) => void;
+  stressPreset: MarketCrashPreset;
+  setStressPreset: (p: MarketCrashPreset) => void;
+  state20D: Float64Array;
+  setState20D: React.Dispatch<React.SetStateAction<Float64Array>>;
+  showWireframe: boolean;
+  setShowWireframe: (v: boolean) => void;
+  showContourLines: boolean;
+  setShowContourLines: (v: boolean) => void;
+  showGreeksVectors: boolean;
+  setShowGreeksVectors: (v: boolean) => void;
+  showCorrelationWeb: boolean;
+  setShowCorrelationWeb: (v: boolean) => void;
+  onResetRisk: () => void;
+}
+
 interface ControlPanelProps {
   activeScenario: ScenarioType;
   swarm: SwarmControlProps;
   robotics: RoboticsControlProps;
   aerodynamics: AerodynamicsControlProps;
+  financialRisk: FinancialRiskControlProps;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -91,7 +117,284 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   swarm,
   robotics,
   aerodynamics,
+  financialRisk,
 }) => {
+  // Scenariusz 4: 20D Financial Risk & Analytical Greeks Engine
+  if (activeScenario === "financialRisk") {
+    const risk = financialRisk;
+    const assetX = ASSETS_20D[risk.axisX];
+    const assetY = ASSETS_20D[risk.axisY];
+
+    const handleShockActiveX = (shift: number) => {
+      risk.setState20D((prev) => {
+        const next = new Float64Array(prev);
+        next[risk.axisX] = Math.max(-1.0, Math.min(1.0, shift));
+        return next;
+      });
+    };
+
+    const handleShockActiveY = (shift: number) => {
+      risk.setState20D((prev) => {
+        const next = new Float64Array(prev);
+        next[risk.axisY] = Math.max(-1.0, Math.min(1.0, shift));
+        return next;
+      });
+    };
+
+    const handleQuickShockAll = (pct: number) => {
+      risk.setState20D((prev) => {
+        const next = new Float64Array(prev.length);
+        for (let i = 0; i < prev.length; i++) {
+          next[i] = Math.max(-1.0, Math.min(1.0, prev[i] + pct));
+        }
+        return next;
+      });
+    };
+
+    return (
+      <div className="control-panel">
+        {/* Status Silnika KAN Risk */}
+        <div className="panel-section">
+          <div className="section-title">
+            <TrendingUp size={16} />
+            <span>20D TT-KAN RISK ENGINE</span>
+          </div>
+          <div className="guard-toggle-card guard-active" style={{ cursor: "default" }}>
+            <div className="guard-info">
+              <span className="guard-title">TT-CROSS 20D CONTINUOUS MANIFOLD</span>
+              <span className="guard-desc">
+                Analytical Greeks &part;V/&part;S<sub>i</sub> &bull; VaR 99% in &lt; 0.1 ms &bull; Zero Monte Carlo
+              </span>
+            </div>
+            <div className="switch-indicator switch-on"></div>
+          </div>
+        </div>
+
+        {/* Wybór Osi Projekcji X i Y */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Sliders size={16} />
+            <span>HYPERSURFACE PROJECTION AXES</span>
+          </div>
+
+          <div style={{ marginBottom: "12px" }}>
+            <div className="slider-header" style={{ marginBottom: "6px" }}>
+              <span className="slider-label" style={{ color: "var(--cyan-primary)" }}>
+                X-AXIS PROJECTION:
+              </span>
+              <span className="slider-value text-cyan">{assetX.symbol} ({assetX.name})</span>
+            </div>
+            <select
+              className="palette-btn"
+              style={{ width: "100%", padding: "8px", background: "var(--bg-card)", color: "#fff" }}
+              value={risk.axisX}
+              onChange={(e) => risk.setAxisX(Number(e.target.value))}
+            >
+              {ASSETS_20D.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.symbol} - {a.name} ({a.category})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <div className="slider-header" style={{ marginBottom: "6px" }}>
+              <span className="slider-label" style={{ color: "var(--emerald-primary)" }}>
+                Y-AXIS PROJECTION:
+              </span>
+              <span className="slider-value text-emerald">{assetY.symbol} ({assetY.name})</span>
+            </div>
+            <select
+              className="palette-btn"
+              style={{ width: "100%", padding: "8px", background: "var(--bg-card)", color: "#fff" }}
+              value={risk.axisY}
+              onChange={(e) => risk.setAxisY(Number(e.target.value))}
+            >
+              {ASSETS_20D.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.symbol} - {a.name} ({a.category})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Presety Szoków Rynkowych (Market Crash Scenarios) */}
+        <div className="panel-section">
+          <div className="section-title">
+            <AlertTriangle size={16} />
+            <span>MARKET CRASH &amp; STRESS PRESETS</span>
+          </div>
+          <div className="button-group" style={{ gridTemplateColumns: "1fr" }}>
+            {[
+              { id: "EQUILIBRIUM", label: "Normal Market Equilibrium", desc: "Baseline volatility & diversified correlations" },
+              { id: "LEHMAN_2008", label: "2008 Lehman Liquidity Crunch", desc: "Credit spreads blow out, systemic correlation surge" },
+              { id: "BLACK_MONDAY_2020", label: "2020 Black Monday Flash Crash", desc: "Severe liquidation, correlation -> 1.0, 2.8x Vol" },
+              { id: "TECH_SQUEEZE", label: "Tech Sector Volatility Squeeze", desc: "MegaCap call skew spike & crypto tail gamma" },
+              { id: "RATES_SHOCK", label: "Sovereign Rates Yield Spike", desc: "Dislocation in US10Y, HYG and Emerging Debt" },
+            ].map((preset) => (
+              <button
+                key={preset.id}
+                className={`btn-toggle ${risk.stressPreset === preset.id ? "active" : ""}`}
+                style={{ textAlign: "left", padding: "8px 12px", height: "auto", display: "flex", flexDirection: "column", gap: "2px" }}
+                onClick={() => risk.setStressPreset(preset.id as MarketCrashPreset)}
+              >
+                <span style={{ fontWeight: 700, fontSize: "11px" }}>{preset.label}</span>
+                <span style={{ fontSize: "9px", color: "var(--text-dim)" }}>{preset.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Suwak Volatility Shock */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Activity size={16} />
+            <span>SYSTEMIC VOLATILITY SHOCK</span>
+          </div>
+          <div className="slider-group">
+            <div className="slider-header">
+              <span className="slider-label">VOLATILITY MULTIPLIER:</span>
+              <span className="slider-value text-amber">{risk.volShock.toFixed(2)}&times;</span>
+            </div>
+            <input
+              type="range"
+              min="0.5"
+              max="3.0"
+              step="0.05"
+              value={risk.volShock}
+              onChange={(e) => risk.setVolShock(parseFloat(e.target.value))}
+              className="range-slider"
+            />
+            <div className="slider-subtext">
+              Scales asset covariances &Sigma;<sub>ij</sub> &bull; Instantly deforms 2nd-order VaR<sub>99%</sub>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamiczne Wstrząsy Aktywów X i Y */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Crosshair size={16} />
+            <span>ACTIVE ASSET SPOT SHIFTS (S_X, S_Y)</span>
+          </div>
+
+          <div className="slider-group" style={{ marginBottom: "12px" }}>
+            <div className="slider-header">
+              <span className="slider-label" style={{ color: "var(--cyan-primary)" }}>
+                {assetX.symbol} SHOCK (S_X):
+              </span>
+              <span className="slider-value text-cyan">
+                {risk.state20D[risk.axisX] >= 0 ? "+" : ""}
+                {(risk.state20D[risk.axisX] * 100).toFixed(0)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="-1.0"
+              max="1.0"
+              step="0.05"
+              value={risk.state20D[risk.axisX] || 0}
+              onChange={(e) => handleShockActiveX(parseFloat(e.target.value))}
+              className="range-slider"
+            />
+          </div>
+
+          <div className="slider-group" style={{ marginBottom: "12px" }}>
+            <div className="slider-header">
+              <span className="slider-label" style={{ color: "var(--emerald-primary)" }}>
+                {assetY.symbol} SHOCK (S_Y):
+              </span>
+              <span className="slider-value text-emerald">
+                {risk.state20D[risk.axisY] >= 0 ? "+" : ""}
+                {(risk.state20D[risk.axisY] * 100).toFixed(0)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="-1.0"
+              max="1.0"
+              step="0.05"
+              value={risk.state20D[risk.axisY] || 0}
+              onChange={(e) => handleShockActiveY(parseFloat(e.target.value))}
+              className="range-slider"
+            />
+          </div>
+
+          <div className="quick-actions-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+            <button className="btn-drift" onClick={() => handleQuickShockAll(-0.2)}>
+              Crash (-20%)
+            </button>
+            <button
+              className="btn-drift"
+              onClick={() => {
+                handleShockActiveX(0.0);
+                handleShockActiveY(0.0);
+              }}
+            >
+              Zero (0%)
+            </button>
+            <button className="btn-drift" onClick={() => handleQuickShockAll(0.2)}>
+              Rally (+20%)
+            </button>
+          </div>
+        </div>
+
+        {/* Warstwy Wizualizacji 3D */}
+        <div className="panel-section">
+          <div className="section-title">
+            <Eye size={16} />
+            <span>3D HYPERSURFACE LAYERS</span>
+          </div>
+
+          <div
+            className={`guard-toggle-card ${risk.showWireframe ? "guard-active" : "guard-inactive"}`}
+            onClick={() => risk.setShowWireframe(!risk.showWireframe)}
+            style={{ marginBottom: "8px" }}
+          >
+            <div className="guard-info">
+              <span className="guard-title">WIREFRAME HYPERSURFACE</span>
+              <span className="guard-desc">36&times;36 continuous polynomial mesh grid</span>
+            </div>
+            <div className={`switch-indicator ${risk.showWireframe ? "switch-on" : ""}`}></div>
+          </div>
+
+          <div
+            className={`guard-toggle-card ${risk.showGreeksVectors ? "guard-active" : "guard-inactive"}`}
+            onClick={() => risk.setShowGreeksVectors(!risk.showGreeksVectors)}
+            style={{ marginBottom: "8px" }}
+          >
+            <div className="guard-info">
+              <span className="guard-title">TANGENT GREEKS &amp; CURVATURE</span>
+              <span className="guard-desc">3D Analytical Delta &nabla;V &amp; Gamma &Gamma;</span>
+            </div>
+            <div className={`switch-indicator ${risk.showGreeksVectors ? "switch-on" : ""}`}></div>
+          </div>
+
+          <div
+            className={`guard-toggle-card ${risk.showCorrelationWeb ? "guard-active" : "guard-inactive"}`}
+            onClick={() => risk.setShowCorrelationWeb(!risk.showCorrelationWeb)}
+          >
+            <div className="guard-info">
+              <span className="guard-title">CORRELATION CONTAGION WEB</span>
+              <span className="guard-desc">Cross-asset inter-dependency network</span>
+            </div>
+            <div className={`switch-indicator ${risk.showCorrelationWeb ? "switch-on" : ""}`}></div>
+          </div>
+        </div>
+
+        {/* Przycisk Resetu */}
+        <div className="panel-section">
+          <button className="btn-reset" onClick={risk.onResetRisk}>
+            <RotateCcw size={15} />
+            <span>RESET RISK ENGINE TO BASELINE</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Scenariusz 3: Tunel Aerodynamiczny CFD (0 Epok)
   if (activeScenario === "aerodynamics") {
     const aero = aerodynamics;

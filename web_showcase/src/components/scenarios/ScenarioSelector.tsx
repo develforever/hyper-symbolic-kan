@@ -1,7 +1,7 @@
 import React from "react";
-import { ShieldCheck, Cpu, Navigation, Wind } from "lucide-react";
+import { ShieldCheck, Cpu, Navigation, Wind, TrendingUp } from "lucide-react";
 
-export type ScenarioType = "swarm" | "robotics" | "aerodynamics";
+export type ScenarioType = "swarm" | "robotics" | "aerodynamics" | "financialRisk";
 
 interface ScenarioSelectorProps {
   activeScenario: ScenarioType;
@@ -64,7 +64,26 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({
             </span>
           )}
         </button>
+
+        <button
+          className={`scenario-tab-btn ${activeScenario === "financialRisk" ? "tab-active" : ""}`}
+          onClick={() => onSelectScenario("financialRisk")}
+        >
+          <div className="tab-icon-wrapper">
+            <TrendingUp size={15} className="tab-icon" />
+          </div>
+          <div className="tab-text-group">
+            <span className="tab-title">4. 20D Risk Engine</span>
+            <span className="tab-subtitle">TT-Cross 20D &bull; Analytical Greeks</span>
+          </div>
+          {activeScenario === "financialRisk" && (
+            <span className="tab-pill-badge" style={{ background: "rgba(245, 158, 11, 0.2)", color: "var(--amber-primary)", borderColor: "rgba(245, 158, 11, 0.4)" }}>
+              5,122 vs 5²⁰
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );
 };
+

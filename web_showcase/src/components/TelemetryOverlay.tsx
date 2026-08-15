@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, Zap, Gauge, Layers, Crosshair, Wind, Activity } from "lucide-react";
+import { ShieldCheck, Zap, Gauge, Layers, Crosshair, Wind, Activity, TrendingUp, BarChart3, AlertTriangle, Cpu } from "lucide-react";
+import { type RiskEngineTelemetry } from "../engine/financialRiskEngine";
 
 export interface SwarmTelemetryProps {
   rank: number;
@@ -38,11 +39,12 @@ export interface AerodynamicsTelemetryProps {
   isStalled: boolean;
 }
 
-interface TelemetryOverlayProps {
-  mode: "swarm" | "robotics" | "aerodynamics";
+export interface TelemetryOverlayProps {
+  mode: "swarm" | "robotics" | "aerodynamics" | "financialRisk";
   swarm?: SwarmTelemetryProps;
   robotics?: RoboticsTelemetryProps;
   aerodynamics?: AerodynamicsTelemetryProps;
+  financialRisk?: RiskEngineTelemetry;
 }
 
 export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
@@ -50,6 +52,7 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
   swarm,
   robotics,
   aerodynamics,
+  financialRisk,
 }) => {
   const [fps, setFps] = useState(60);
   const [frameTime, setFrameTime] = useState(16.6);
@@ -76,6 +79,161 @@ export const TelemetryOverlay: React.FC<TelemetryOverlayProps> = ({
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
   }, []);
+
+  // Scenariusz 4: 20D Financial Risk & Analytical Greeks Engine
+  if (mode === "financialRisk" && financialRisk) {
+    const risk = financialRisk;
+    const isPnlPositive = risk.pnlPercent >= 0;
+
+    return (
+      <div className="telemetry-panel">
+        <div className="telemetry-header">
+          <div className="status-dot-container">
+            <span
+              className="status-dot"
+              style={{
+                background: "var(--amber-primary)",
+                boxShadow: "0 0 8px var(--amber-primary)",
+              }}
+            ></span>
+            <span className="telemetry-title">
+              20D TT-KAN RISK ENGINE &bull; PROJECTION ({risk.activeXSymbol} &times; {risk.activeYSymbol})
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <span
+              className="badge-zero-epochs"
+              style={{
+                background: "rgba(245, 158, 11, 0.15)",
+                color: "var(--amber-primary)",
+                borderColor: "rgba(245, 158, 11, 0.3)",
+              }}
+            >
+              D = 20 ASSETS
+            </span>
+            <span
+              className="badge-zero-epochs"
+              style={{
+                background: "rgba(16, 185, 129, 0.15)",
+                color: "var(--emerald-primary)",
+                borderColor: "rgba(16, 185, 129, 0.3)",
+              }}
+            >
+              0 MONTE CARLO PATHS
+            </span>
+          </div>
+        </div>
+
+        <div className="telemetry-grid">
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Zap size={14} className="icon-amber" />
+              <span>GREEKS CONTRACTION LATENCY</span>
+            </div>
+            <div className="telemetry-card-val text-amber">
+              {risk.evalLatencyMs.toFixed(2)} <span className="telemetry-unit">ms (Exact O(1))</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <TrendingUp size={14} className={isPnlPositive ? "icon-emerald" : "icon-red"} />
+              <span>PORTFOLIO VALUE V(S)</span>
+            </div>
+            <div className={`telemetry-card-val ${isPnlPositive ? "text-emerald" : "text-red"}`}>
+              ${risk.portfolioValueM.toFixed(2)}M{" "}
+              <span className="telemetry-unit">
+                {isPnlPositive ? `+${risk.pnlPercent.toFixed(1)}%` : `${risk.pnlPercent.toFixed(1)}%`}
+              </span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <AlertTriangle size={14} className="icon-red" />
+              <span>PARAMETRIC VaR 99% (1-DAY)</span>
+            </div>
+            <div className="telemetry-card-val text-red">
+              -${risk.var99M.toFixed(2)}M{" "}
+              <span className="telemetry-unit">({risk.var99Percent.toFixed(1)}% notional)</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Activity size={14} className="icon-cyan" />
+              <span>EXPECTED SHORTFALL (ES 99%)</span>
+            </div>
+            <div className="telemetry-card-val text-cyan">
+              -${risk.es99M.toFixed(2)}M{" "}
+              <span className="telemetry-unit">Tail Risk</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <BarChart3 size={14} className="icon-cyan" />
+              <span>MAX DELTA EXPOSURE</span>
+            </div>
+            <div className="telemetry-card-val text-cyan">
+              {risk.maxDeltaAsset.symbol}{" "}
+              <span className="telemetry-unit">
+                (&Delta; = {risk.maxDeltaAsset.delta >= 0 ? "+" : ""}{risk.maxDeltaAsset.delta.toFixed(2)})
+              </span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Cpu size={14} className="icon-emerald" />
+              <span>MAX CONVEXITY / GAMMA</span>
+            </div>
+            <div className="telemetry-card-val text-emerald">
+              {risk.maxGammaAsset.symbol}{" "}
+              <span className="telemetry-unit">
+                (&Gamma; = {risk.maxGammaAsset.gamma >= 0 ? "+" : ""}{risk.maxGammaAsset.gamma.toFixed(2)})
+              </span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <ShieldCheck size={14} className="icon-emerald" />
+              <span>DIVERSIFICATION BENEFIT</span>
+            </div>
+            <div className="telemetry-card-val text-emerald">
+              {risk.diversificationBenefitPercent.toFixed(1)}%{" "}
+              <span className="telemetry-unit">&sigma; reduction</span>
+            </div>
+          </div>
+
+          <div className="telemetry-card">
+            <div className="telemetry-card-label">
+              <Layers size={14} className="icon-amber" />
+              <span>TT-CROSS COMPRESSION</span>
+            </div>
+            <div className="telemetry-card-val text-amber">
+              {risk.ttSampleCount.toLocaleString()}{" "}
+              <span className="telemetry-unit">vs 5²⁰ (12 KB)</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="math-proof-box">
+          <div className="math-label">
+            TT-KAN 20D CONTRACTIONS &bull; AN ANALYTICAL CONTINUOUS HYPERSURFACE:
+          </div>
+          <div className="math-formula">
+            V(S) = &prod;<sub>i=1</sub><sup>20</sup> G<sup>(i)</sup>(S<sub>i</sub>)
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            &Delta;<sub>i</sub> = L<sub>i-1</sub> &middot; (&part;M<sub>i</sub>/&part;S<sub>i</sub>) &middot; R<sub>i+1</sub>
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            &sigma;<sub>P</sub><sup>2</sup> = &Delta;<sup>T</sup>&Sigma;&Delta; + &frac12;Tr((&Gamma;&Sigma;)<sup>2</sup>)
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Scenariusz 3: Aerodynamika CFD Tunel
   if (mode === "aerodynamics" && aerodynamics) {
