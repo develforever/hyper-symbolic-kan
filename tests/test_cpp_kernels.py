@@ -1,11 +1,29 @@
-import time
 import numpy as np
+import pytest
 from concurrent.futures import ThreadPoolExecutor
 
 from src.tdff_net.tt_kan import TensorTrainKAN
 from src.tdff_net.dr_tt_kan import DynamicRankTTKAN
 from src.tdff_net.tensor_field import TDFFNet
-from src.cpp_kernels.cpp_kan_engine import FastCPPKANEngine
+from src.cpp_kernels.cpp_kan_engine import FastCPPKANEngine, _HAS_CPP
+from tests._native import REQUIRE_NATIVE, requires_native
+
+# Audit V2: without the marker a clean checkout (no compiled extension) failed
+# the whole suite. The `native-required` CI job sets HSKAN_REQUIRE_NATIVE=1, and
+# `test_native_extension_present` below then fails instead of skipping.
+pytestmark = requires_native
+
+
+@pytest.mark.skipif(
+    not REQUIRE_NATIVE,
+    reason="guard for the native-required CI job; set HSKAN_REQUIRE_NATIVE=1 to enable",
+)
+def test_native_extension_present():
+    """The `native-required` CI job must fail if `_cpp_kernels` did not build."""
+    assert _HAS_CPP, (
+        "HSKAN_REQUIRE_NATIVE=1 but the compiled extension _cpp_kernels is not "
+        "importable -- the native code path was silently skipped"
+    )
 
 
 def test_tt_kan_cpp_forward_precision():
@@ -128,55 +146,6 @@ def test_cp_kan_cpp_gradient_precision():
     assert max_err < 1e-12, f"CP-KAN C++ gradient error too large: {max_err}"
 
 
-def test_cpp_throughput_and_latency_benchmark():
-    """
-    Rygorystyczny benchmark wydajnościowy C++ (AVX2 + OpenMP):
-    Wymagania Etapu A:
-    - Przepustowość > 1,500,000 punktów/s w batchu
-    - Opóźnienie wywołania < 0.2 us / punkt w batchu
-    """
-    np.random.seed(42)
-    N = 100000
-    D = 10
-    degree = 5
-    ranks = [1] + [8] * (D - 1) + [1]
-    
-    model = TensorTrainKAN(spatial_dim=D, ranks=ranks, degree=degree)
-    engine = FastCPPKANEngine(spatial_dim=D, degree=degree)
-    assert engine.is_native_available()
-    
-    X = np.random.uniform(-0.9, 0.9, (N, D))
-    
-    # Rozgrzewka (Warmup)
-    for _ in range(3):
-        _ = engine.evaluate_batch(X[:1000], model.cores, model.ranks)
-        
-    # Pomiar czasu ewaluacji
-    repeats = 5
-    times = []
-    for _ in range(repeats):
-        t0 = time.perf_counter()
-        _ = engine.evaluate_batch(X, model.cores, model.ranks)
-        t1 = time.perf_counter()
-        times.append(t1 - t0)
-        
-    best_time = min(times)
-    throughput = N / best_time
-    latency_us = (best_time * 1e6) / N
-    
-    print("\n" + "=" * 70)
-    print("HYPER-SYMBOLIC KAN C++ NATIVE ENGINE PERFORMANCE BENCHMARK")
-    print("=" * 70)
-    print(f"Points Evaluated: {N:,} in {D}D (Chebyshev degree {degree}, TT ranks 8)")
-    print(f"Best Batch Time: {best_time * 1000.0:.2f} ms")
-    print(f"Latency per point: {latency_us:.4f} us / query")
-    print(f"Throughput: {throughput:,.0f} points / second")
-    print("=" * 70)
-    
-    assert throughput >= 1500000, f"Throughput {throughput:,.0f} pts/s below target 1,500,000 pts/s!"
-    assert latency_us <= 0.67, f"Latency {latency_us:.4f} us above acceptable threshold"
-
-
 def test_gil_release_and_concurrency():
     """
     Weryfikacja równoległego zwalniania GIL przez nanobind przy wywołaniach z wielu wątków Pythona.
@@ -186,6 +155,7 @@ def test_gil_release_and_concurrency():
     degree = 4
     model = TensorTrainKAN(spatial_dim=D, ranks=[1] + [6] * (D - 1) + [1], degree=degree)
     engine = FastCPPKANEngine(spatial_dim=D, degree=degree)
+    assert engine.is_native_available(), "GIL release is only meaningful for the native kernels"
     
     def worker(worker_id: int):
         X_sub = np.random.uniform(-0.9, 0.9, (N, D))
@@ -206,5 +176,4 @@ if __name__ == "__main__":
     test_tt_kan_cpp_gradient_precision()
     test_cp_kan_cpp_forward_precision()
     test_cp_kan_cpp_gradient_precision()
-    test_cpp_throughput_and_latency_benchmark()
     test_gil_release_and_concurrency()

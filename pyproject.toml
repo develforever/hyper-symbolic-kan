@@ -25,3 +25,7 @@ dependencies = [
 cmake.build-type = "Release"
 build-dir = "build"
 wheel.packages = ["src"]
+
+[tool.pytest.ini_options]
+# Benchmarks live in benchmarks/ and are not collected by `pytest tests/`.
+testpaths = ["tests"]

@@ -57,3 +57,5 @@ Thumbs.db
 
 # Agent metadata
 .agent/
+# pytest-benchmark local storage (committed baselines live in benchmarks/baselines/)
+.benchmarks/
