@@ -62,7 +62,7 @@ nanobind_add_module(_cpp_kernels
 target_include_directories(_cpp_kernels PRIVATE src/cpp_kernels)
 
 # ---------------------------------------------------------------------------
-# Warnings (audit C5)
+# Warnings (audit C5 / V4)
 # ---------------------------------------------------------------------------
 # -Wunknown-pragmas is what makes the MSVC-only `#pragma loop(ivdep)` class of
 # bug visible on GCC/Clang instead of being silently ignored.
@@ -136,6 +136,24 @@ if(HSKAN_SANITIZE AND NOT MSVC)
     )
     target_link_options(_cpp_kernels PRIVATE -fsanitize=${HSKAN_SANITIZE_LIST})
 endif()
+
+# ---------------------------------------------------------------------------
+# Report the flags that were actually selected (audit V4: the CI log must show
+# what was used, not what the file says).
+# ---------------------------------------------------------------------------
+get_target_property(_hskan_opts _cpp_kernels COMPILE_OPTIONS)
+message(STATUS "==================== hs-kan build configuration ====================")
+message(STATUS "[hs-kan] system            : ${CMAKE_SYSTEM_NAME} / ${CMAKE_SYSTEM_PROCESSOR}")
+message(STATUS "[hs-kan] compiler          : ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+message(STATUS "[hs-kan] build type        : ${CMAKE_BUILD_TYPE}")
+message(STATUS "[hs-kan] python            : ${Python_VERSION} (${Python_EXECUTABLE})")
+message(STATUS "[hs-kan] OpenMP found      : ${OpenMP_CXX_FOUND} (spec ${OpenMP_CXX_SPEC_DATE}, flags ${OpenMP_CXX_FLAGS})")
+message(STATUS "[hs-kan] HSKAN_ENABLE_AVX2 : ${HSKAN_ENABLE_AVX2}")
+message(STATUS "[hs-kan] HSKAN_WERROR      : ${HSKAN_WERROR}")
+message(STATUS "[hs-kan] HSKAN_SANITIZE    : ${HSKAN_SANITIZE}")
+message(STATUS "[hs-kan] target options    : ${_hskan_opts}")
+message(STATUS "[hs-kan] CMAKE_CXX_FLAGS   : ${CMAKE_CXX_FLAGS}")
+message(STATUS "====================================================================")
 
 # Install module into src/cpp_kernels
 install(TARGETS _cpp_kernels DESTINATION src/cpp_kernels)

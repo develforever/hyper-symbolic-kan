@@ -29,3 +29,20 @@ wheel.packages = ["src"]
 [tool.pytest.ini_options]
 # Benchmarks live in benchmarks/ and are not collected by `pytest tests/`.
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = ["build", ".venv", "web_showcase", "packages"]
+
+[tool.ruff.lint]
+# Deliberately narrow gate (audit V4). The wide default rule set currently
+# reports ~1660 findings in src/ (E501/W293 formatting, UP006/UP035 typing
+# modernisation, 66x NPY002 legacy np.random -- audit A4). Fixing them in the
+# same commit as the C++ portability work would make both unreviewable, so the
+# blocking gate is limited to rules that flag genuine defects (syntax errors,
+# undefined names, invalid comparisons) and passes today with 0 findings.
+#
+# The CI `lint` job additionally reports the full rule set and the NPY002 count
+# as non-blocking output; widening this select list is tracked in CLAUDE.md.
+select = ["E9", "F63", "F7", "F82"]

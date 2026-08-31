@@ -1,0 +1,285 @@
+name: CI
+
+# Audit V4: the repository had no CI at all, and build/ contained only MSVC
+# artifacts -- the GCC/Clang path had never been compiled. This workflow is the
+# precondition for every portability and performance claim in the repository.
+
+on:
+  push:
+    branches: ["main", "ci/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. The portability matrix. Baseline build: no AVX2 (audit C6), warnings as
+  #    errors (audit C5).
+  # ---------------------------------------------------------------------------
+  test:
+    name: test ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install build tooling
+        run: python -m pip install "scikit-build-core>=0.10" "nanobind>=2.0" ninja cmake
+
+      - name: Install runtime dependencies (CPU-only torch on Linux)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # PyPI's default torch wheel drags in ~2.5 GB of CUDA libraries.
+            python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          fi
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Build extension (baseline, no AVX2)
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pip install -e . --no-build-isolation --no-deps -v \
+            -C build.verbose=true \
+            -C cmake.define.HSKAN_WERROR=ON \
+            -C cmake.define.HSKAN_ENABLE_AVX2=OFF 2>&1 | tee build.log
+
+      - name: Compiler flags actually used
+        shell: bash
+        run: |
+          echo "=================== CMake configuration report ==================="
+          grep -E '\[hs-kan\]' build.log || echo "!! no [hs-kan] report in build log"
+          echo "=================== Compile command lines ========================"
+          grep -E 'fast_kan_(kernel|bindings)\.cpp' build.log | head -n 4 \
+            || echo "!! no compile command lines captured (nothing to rebuild?)"
+
+      - name: Assert the binary contains no AVX2/AVX code (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          so=$(find . -name '_cpp_kernels*.so' | head -n1)
+          echo "inspecting: $so"
+          ymm=$(objdump -d "$so" | grep -c '%ymm' || true)
+          echo "instructions referencing %ymm registers: $ymm"
+          test "$ymm" -eq 0 || {
+            echo "!! AVX/AVX2 code in a build configured with HSKAN_ENABLE_AVX2=OFF"
+            exit 1
+          }
+
+      - name: Run test suite
+        run: python -m pytest tests/ -q
+
+  # ---------------------------------------------------------------------------
+  # 2. The extension MUST be present here. `tests/_native.py` skips the native
+  #    tests when _cpp_kernels is missing (audit V2); a skip that silently
+  #    disables the whole native path is worse than no skip, so this job sets
+  #    HSKAN_REQUIRE_NATIVE=1 and fails instead of skipping.
+  # ---------------------------------------------------------------------------
+  native-required:
+    name: native extension required
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install "scikit-build-core>=0.10" "nanobind>=2.0" ninja cmake
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Build extension
+        run: python -m pip install -e . --no-build-isolation --no-deps -v -C build.verbose=true
+
+      - name: Run suite with the native path mandatory
+        env:
+          HSKAN_REQUIRE_NATIVE: "1"
+        run: python -m pytest tests/ -q -rs
+
+  # ---------------------------------------------------------------------------
+  # 3. The mirror image: no compiled extension at all. Proves the suite is
+  #    runnable on a clean checkout (audit V2) and that the skips are honest.
+  # ---------------------------------------------------------------------------
+  test-no-extension:
+    name: pure-python (no extension)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies (no build step)
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Assert the extension is genuinely absent
+        run: |
+          python -c "from src.cpp_kernels.cpp_kan_engine import _HAS_CPP; assert not _HAS_CPP, 'expected no compiled extension'"
+
+      - name: Run test suite (native tests must skip, not fail)
+        run: python -m pytest tests/ -q -rs
+
+  # ---------------------------------------------------------------------------
+  # 4. ASan + UBSan, Debug, Linux only (audit C2: `P * P` in int arithmetic was
+  #    signed overflow -- undefined behaviour -- for a legal user configuration).
+  # ---------------------------------------------------------------------------
+  sanitizers:
+    name: ASan + UBSan (Debug, Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install "scikit-build-core>=0.10" "nanobind>=2.0" ninja cmake
+          # Deliberately minimal: torch/jax are not imported by the native tests
+          # and instrumenting a process that loads them would drown the report.
+          python -m pip install numpy scipy pytest
+
+      - name: Build with -fsanitize=address,undefined
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pip install -e . --no-build-isolation --no-deps -v \
+            -C build.verbose=true \
+            -C cmake.build-type=Debug \
+            -C cmake.define.HSKAN_SANITIZE="address,undefined" \
+            -C cmake.define.HSKAN_WERROR=ON 2>&1 | tee build-asan.log
+          grep -E '\[hs-kan\]' build-asan.log || true
+
+      - name: Run native tests under the sanitizers
+        shell: bash
+        env:
+          # Python allocates and never frees a great deal by design; leak
+          # detection here would only report CPython and NumPy, not our kernels.
+          ASAN_OPTIONS: detect_leaks=0:abort_on_error=1:strict_string_checks=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+          OMP_NUM_THREADS: "1"
+          HSKAN_REQUIRE_NATIVE: "1"
+        run: |
+          # A sanitized shared library loaded by an unsanitized interpreter must
+          # have libasan first in the link order, hence LD_PRELOAD.
+          export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
+          python -m pytest tests/test_cpp_size_guards.py tests/test_cpp_kernels.py -q -rs
+
+  # ---------------------------------------------------------------------------
+  # 5. Lint / type-check gate (audit V4).
+  # ---------------------------------------------------------------------------
+  lint:
+    name: ruff + pyright
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      # Blocking. The selected rule set is deliberately narrow -- see the
+      # comment on [tool.ruff.lint] in pyproject.toml.
+      - name: ruff (gate)
+        run: python -m ruff check src/ tests/ benchmarks/
+
+      # Non-blocking. Reports how far the wide rule set still is, including
+      # NPY002 (np.random.seed in library code -- audit A4). These counts are
+      # recorded in CLAUDE.md; the gate is widened in a separate change, not
+      # here, so that the C++ portability diff stays reviewable.
+      - name: ruff (advisory, full rule set)
+        run: |
+          python -m ruff check --select E,F,W,I,B,UP,NPY,SIM,RUF \
+            --statistics --exit-zero src/
+          echo "--- NPY002 (audit A4: np.random.seed in src/) ---"
+          python -m ruff check --select NPY002 --statistics --exit-zero src/
+
+      # Non-blocking. `pyright --strict` on src/ is not attainable in one
+      # change; the count is reported so the trend is visible.
+      - name: pyright (advisory)
+        run: |
+          echo "=== basic mode ==="
+          python -m pyright --pythonpath "$(which python)" src/ || true
+          echo "=== strict mode ==="
+          python -m pyright --pythonpath "$(which python)" -p pyrightconfig.strict.json || true
+
+  # ---------------------------------------------------------------------------
+  # 6. Benchmarks. Informational only: GitHub-hosted runners are shared and
+  #    their run-to-run spread exceeds the 20% regression criterion, so a gate
+  #    here would report regressions that do not exist. The enforceable gate is
+  #    a same-machine comparison -- see benchmarks/README.md.
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: benchmarks (informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install "scikit-build-core>=0.10" "nanobind>=2.0" ninja cmake
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Build extension
+        run: python -m pip install -e . --no-build-isolation --no-deps
+
+      - name: Run benchmarks
+        env:
+          HSKAN_REQUIRE_NATIVE: "1"
+        run: |
+          python -m pytest benchmarks/ -q \
+            --benchmark-json=benchmark-results.json \
+            --benchmark-columns=median,iqr,ops \
+            --benchmark-sort=name
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-ubuntu-py312
+          path: benchmark-results.json
