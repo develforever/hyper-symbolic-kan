@@ -13,7 +13,10 @@ class HyperSymbolicQAEngine:
     3. Bezpieczeństwo i Inwarianty -> MCT-NSE v2 Concurrent Monadic Engine (Task 4, 13)
     4. Natywna Wydajność -> C++ Microsecond Engine (Task 14)
     
-    ZAPEWNIA: 0 Halucynacji, Dowód Matematyczny, Czas Odpowiedzi < 1 ms.
+    Zakres: silnik odpowiada wyłącznie z prekomputowanych struktur (macierz
+    domknięcia, pole KAN) i odmawia rozstrzygnięcia, gdy struktury brak albo
+    zapytanie wykracza poza jej zakres -- patrz `tests/test_qa_engine.py`.
+    Latencja odpowiedzi nie jest weryfikowana testem.
     """
     def __init__(
         self,
@@ -46,8 +49,11 @@ class HyperSymbolicQAEngine:
                 if u < max_u and v < max_v:
                     is_connected = bool(self.closure_matrix[u, v] > 0)
                     status_str = "TAK, są połączone ścieżką relacyjną" if is_connected else "NIE, brak relacji w grafie"
-                    return f"[HS-CKAN QA]: {status_str} (Encja {u} -> Encja {v}). Gwarancja pewności: 100.0%. Czas wyliczenia: {latency_ms:.4f} ms."
-            return f"[HS-CKAN QA]: TAK, encja {u} jest połączona z encją {v} w Algebrze Clifforda Cℓ_N. Gwarancja: 100.0%. Czas wyliczenia: {latency_ms:.4f} ms."
+                    return f"[HS-CKAN QA]: {status_str} (Encja {u} -> Encja {v}). Odczyt z prekomputowanego domknięcia przechodniego. Czas wyliczenia: {latency_ms:.4f} ms."
+                powod = f"indeks poza zakresem macierzy {max_u}x{max_v}"
+            else:
+                powod = "brak zbudowanego domknięcia przechodniego"
+            return f"[HS-CKAN QA]: Nie mogę rozstrzygnąć relacji encja {u} -> encja {v} ({powod}). Czas wyliczenia: {latency_ms:.4f} ms."
 
         # 2. ZAPYTANIA GEOMETRYCZNE I POLE CIĄGŁE (DR-TT-KAN / TDFF-Net)
         # Przykłady: "Jaki stan w punkcie 12.5, -5.0?", "What is the field value at 1.0, 2.0?", "Gdzie uciekać z 5, 5?"
@@ -79,9 +85,9 @@ class HyperSymbolicQAEngine:
         if any(w in q_lower for w in ["bezpiecz", "safe", "narusz", "violation", "flot", "fleet", "dron", "agent"]):
             latency_ms = (time.perf_counter() - t0) * 1000.0
             return (
-                f"[MCT-NSE v2 QA]: Flota {self.num_agents} agentów znajduje się w 100% bezpiecznym stanie kategorialnym. "
-                f"Wskaźnik naruszeń reguł (Violation Rate): 0.00%. "
-                f"Wszystkie inwarianty No-Fly Zone i Speed Limit spełnione deterministycznie. Czas weryfikacji: {latency_ms:.4f} ms."
+                f"[MCT-NSE v2 QA]: Ta ścieżka QA nie uruchamia weryfikacji floty {self.num_agents} agentów — "
+                f"zwraca opis architektury, nie zmierzony wynik. Pomiar wskaźnika naruszeń wykonuje "
+                f"`src/tasks/concurrent_formal_verification.py`. Czas odpowiedzi: {latency_ms:.4f} ms."
             )
 
         # 4. ZAPYTANIA O ARCHITEKTURĘ I METRYKI (System Audit)

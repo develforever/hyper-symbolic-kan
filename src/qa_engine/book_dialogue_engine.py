@@ -106,9 +106,9 @@ class HyperSymbolicBookDialogueEngine:
             e1_inf = PolishGrammarRealizer.inflect(e1, "biernik")
             
             if direct_rels:
-                return f"[Książka '{self.book_title}' - HS-CKAN]: {e1} w powieści {direct_rels[0]} {e2_inf}. (Pewność: 100%, {dt_ms:.4f} ms)."
+                return f"[Książka '{self.book_title}' - HS-CKAN]: {e1} w powieści {direct_rels[0]} {e2_inf}. (relacja bezpośrednia z bazy wiedzy, {dt_ms:.4f} ms)."
             elif reverse_rels:
-                return f"[Książka '{self.book_title}' - HS-CKAN]: {e2} w powieści {reverse_rels[0]} {e1_inf}. (Pewność: 100%, {dt_ms:.4f} ms)."
+                return f"[Książka '{self.book_title}' - HS-CKAN]: {e2} w powieści {reverse_rels[0]} {e1_inf}. (relacja bezpośrednia z bazy wiedzy, {dt_ms:.4f} ms)."
             elif self.closure_matrix is not None and self.closure_matrix[u, v] > 0:
                 return f"[Książka '{self.book_title}' - HS-CKAN]: {e1} jest połączony pośrednią relacją z {e2_inf} w strukturze algebry geometrycznej. ({dt_ms:.4f} ms)."
 
@@ -144,7 +144,7 @@ class HyperSymbolicBookDialogueEngine:
         if any(w in q_lower for w in ["kiedy", "chronologia", "kolejno", "potem", "najpierw", "gdzie był", "gdzie bywał", "wydarzenia"]):
             dt_ms = (time.perf_counter() - t0) * 1000.0
             timeline_str = " -> ".join(self.timeline[:5])
-            return f"[Książka '{self.book_title}' - MCT-NSE Timeline]: Chronologia zdarzeń w powieści: {timeline_str}. (0.00% błędów chronologicznych, {dt_ms:.4f} ms)."
+            return f"[Książka '{self.book_title}' - MCT-NSE Timeline]: Chronologia zdarzeń w powieści: {timeline_str}. ({dt_ms:.4f} ms)."
 
         # 3. Pytania o Nasycenie Pojęć i Rozdziały (DR-TT-KAN Field)
         if any(w in q_lower for w in ["rozdział", "gdzie", "motyw", "pojęcie", "kluczow"]):
