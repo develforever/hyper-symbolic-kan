@@ -7,6 +7,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # ---------------------------------------------------------------------------
 # Build options
 # ---------------------------------------------------------------------------
+# HSKAN_ENABLE_AVX2 (audit C6): `-mavx2 -mfma` / `/arch:AVX2` used to be
+# unconditional on x86-64, which means the module raised SIGILL on import on any
+# CPU without AVX2. The default build is now the x86-64 baseline (SSE2); AVX2 is
+# opt-in until runtime dispatch exists. Do NOT turn this on for a published
+# wheel -- there is no `__builtin_cpu_supports` guard yet.
+option(HSKAN_ENABLE_AVX2 "Compile the whole extension with AVX2/FMA (no runtime dispatch -- SIGILL on pre-AVX2 CPUs)" OFF)
+
 # HSKAN_WERROR: warnings-as-errors on the extension target. On in CI; a distro
 # or end-user build that hits a warning from a newer compiler can pass
 # -DHSKAN_WERROR=OFF without patching this file.
@@ -73,7 +80,6 @@ endif()
 if(MSVC)
     target_compile_options(_cpp_kernels PRIVATE
         /O2
-        /arch:AVX2
         # IEEE-conformant FP semantics. /fp:fast was removed (audit C7): it
         # permits reassociation of the Chebyshev recurrence and assumes the
         # absence of NaN/Inf, which invalidates the `total_energy < 1e-14`
@@ -82,6 +88,9 @@ if(MSVC)
         # FMA contraction only -- increases accuracy, keeps IEEE semantics.
         /fp:contract
     )
+    if(HSKAN_ENABLE_AVX2)
+        target_compile_options(_cpp_kernels PRIVATE /arch:AVX2)
+    endif()
     if(OpenMP_CXX_FOUND)
         target_compile_options(_cpp_kernels PRIVATE /openmp)
     endif()
@@ -95,9 +104,14 @@ else()
         # increases accuracy.
         -ffp-contract=fast
     )
-    # AVX2 flags on x86/x64
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64)|(amd64)")
-        target_compile_options(_cpp_kernels PRIVATE -mavx2 -mfma)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64)|(amd64)|(i[3-6]86)")
+        if(HSKAN_ENABLE_AVX2)
+            target_compile_options(_cpp_kernels PRIVATE -mavx2 -mfma)
+        else()
+            # Explicit, so the baseline claim is provable from the compile line
+            # in the CI log, not just from the absence of -mavx2.
+            target_compile_options(_cpp_kernels PRIVATE -mno-avx2 -mno-fma)
+        endif()
     endif()
     if(OpenMP_CXX_FOUND)
         target_link_libraries(_cpp_kernels PRIVATE OpenMP::OpenMP_CXX)
