@@ -1,0 +1,32 @@
+# Line endings are normalized to LF in the repository.
+#
+# Without this file the result depends on the machine's Git configuration:
+# Git for Windows ships `core.autocrlf=true` in its *system* gitconfig
+# (C:/Program Files/Git/etc/gitconfig), so a Windows checkout hides CRLF
+# noise that a Linux/CI checkout — or any Git install without that default —
+# reports as thousands of changed lines. Repository correctness must not
+# depend on an installer default.
+
+* text=auto eol=lf
+
+# Explicitly binary — never touch the bytes, never diff as text.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.pyd   binary
+*.dll   binary
+*.lib   binary
+*.exp   binary
+*.obj   binary
+*.so    binary
+*.dylib binary
+*.a     binary
+*.npy   binary
+*.npz   binary
+*.safetensors binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
