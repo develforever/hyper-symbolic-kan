@@ -32,9 +32,16 @@ class ConcurrentCategoryFilter:
     r"""
     Współbieżny i Wektorowy Filtr Reguł Kategorycznych (MCT-NSE v2 Formal Category Guard).
     
-    Opakowuje wektorowe przejścia stanowe dla N=1000 agentów w chronioną strzałkę Kleisliego,
-    gwarantując w 100% kategoryczne spełnienie wszystkich inwariantów (0% violation rate)
-    w sub-mikrosekundowym czasie dla każdego agenta.
+    Opakowuje wektorowe przejścia stanowe całej floty w chronioną strzałkę Kleisliego
+    i iteruje morfizmy naprawcze do punktu stałego.
+
+    Zakres gwarancji: `filter_state` wykonuje najwyżej `max_iters` przebiegów i zwraca
+    stan taki, jaki osiągnie — bez sygnalizacji, że punkt stały nie został osiągnięty.
+    Spełnienie inwariantów jest zagwarantowane tylko dla morfizmów idempotentnych
+    i wzajemnie nieinterferujących; weryfikuje to
+    `tests/test_safety_and_nary.py::test_concurrent_category_filter_zero_violations`
+    dla pojedynczego inwariantu box-bounds przy N=500. Brak testu dla inwariantów
+    interferujących; latencja na agenta nie jest mierzona w testach.
     """
     def __init__(self):
         self.invariants: List[VectorCategoryInvariant] = []

@@ -83,8 +83,8 @@ def run_task_15_hyper_symbolic_qa_benchmark() -> bool:
     print("-" * 65)
     print(f"[+] Average Question Answer Latency: {avg_latency:.4f} ms / question")
     print(f"[+] Maximum Question Answer Latency: {max_latency:.4f} ms / question")
-    print(f"[RESULT] Zero Hallucinations: PASSED (100% Closed-form Algebraic & Field Exactness)")
-    print(f"[RESULT] Zero Gradient Epochs: PASSED (0.00% Backpropagation)")
+    print(f"[RESULT] Zero Gradient Epochs: brak wywołań backpropagacji w ścieżce QA "
+          f"(własność konstrukcyjna, nie pomiar).")
     
     passed = (avg_latency < 1.0) and (max_latency < 5.0)
     verdict = "PASSED" if passed else "FAILED"

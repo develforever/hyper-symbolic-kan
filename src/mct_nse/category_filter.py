@@ -26,8 +26,15 @@ class CategoryFilter(Generic[S, A]):
     r"""
     Kategoryczny Filtr Reguł Formalnych (Formal Category Guard).
     
-    Opakowuje przejścia stanowe w obostrzenie Kleisliego (Guarded Kleisli Arrow),
-    gwarantując w 100% algebraiczne spełnienie wszystkich inwariantów (0% violation rate).
+    Opakowuje przejścia stanowe w obostrzenie Kleisliego (Guarded Kleisli Arrow)
+    i iteruje morfizmy naprawcze do punktu stałego.
+
+    Zakres gwarancji: `filter_state` wykonuje najwyżej `max_iters` przebiegów i zwraca
+    stan taki, jaki osiągnie — bez sygnalizacji, że punkt stały nie został osiągnięty.
+    Spełnienie inwariantów jest więc zagwarantowane tylko dla morfizmów naprawczych,
+    które są idempotentne i wzajemnie nieinterferujące. Weryfikuje to
+    `tests/test_safety_and_nary.py::test_concurrent_category_filter_zero_violations`
+    dla pojedynczego inwariantu box-bounds. Brak testu dla inwariantów interferujących.
     """
     def __init__(self):
         self.invariants: List[CategoryInvariant[S]] = []

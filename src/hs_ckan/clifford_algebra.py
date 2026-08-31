@@ -32,7 +32,15 @@ class CliffordAlgebraEngine:
     def compute_transitive_closure_matrix(self, direct_edges: list, max_depth: int = 50) -> sp.csr_matrix:
         """
         Analityczne rzadkie domknięcie przechodnie w postaci rzadkich macierzy iloczynów geometrycznych.
-        Szybkość O(|E| * depth), 0 epok uczenia, 100% dokładności.
+        0 epok uczenia.
+
+        OGRANICZENIA (audyt M7, jeszcze nienaprawione — nie polegaj na tym wyniku):
+        - `max_depth` ucina ścieżki dłuższe niż `max_depth` krawędzi — wynik NIE jest
+          pełnym domknięciem przechodnim dla grafów o dłuższych ścieżkach.
+        - Akumulacja w float32 zlicza ścieżki i przepełnia się do `inf` dla grafów gęstych.
+        - Typ zwracany jest niestabilny: `np.ndarray` dla N<=2000, `csr_matrix` powyżej.
+        - Koszt nie jest O(|E|*depth): nnz(M^k) rośnie do O(N^2).
+        Brak testu weryfikującego poprawność wyniku (oracle: `networkx.transitive_closure`).
         """
         if not direct_edges:
             return sp.csr_matrix((self.N, self.N), dtype=np.int32)

@@ -19,8 +19,16 @@ class TuckerALSSolver:
         """
         X: Punkty w przestrzeni (N, D)
         Y: Docelowe pola/SDF (N,)
+
+        Raises:
+            NotImplementedError: dla D != 2. Cała logika ALS poniżej jest
+                warunkowana `if D == 2`; dla pozostałych D pętla wykonywała się
+                bezczynnie i zwracała MSE losowej inicjalizacji jako metrykę
+                sukcesu (audyt M3). Wariant ogólny nie jest zaimplementowany.
         """
         N, D = X.shape
+        if D != 2:
+            raise NotImplementedError(f"TuckerALS supports D=2, got D={D}")
         Y = Y.ravel()
         
         for it in range(self.max_als_iters):

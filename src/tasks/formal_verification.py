@@ -13,7 +13,9 @@ class FormalVerificationTask:
     
     Porównuje:
     - Surowy KAN / Neural Predictor (brak filtracji): generuje naruszenia zasad.
-    - MCT-NSE Monadic Category Filter: 100% deterministyczna ochrona invariantów (0.00% violation rate).
+    - MCT-NSE Monadic Category Filter: deterministyczna filtracja stanów; zmierzony
+      wskaźnik naruszeń po filtracji raportowany jako `mct_nse_violation_rate`
+      (nie jest gwarancją a priori — patrz `CategoryFilter.filter_state`, max_iters).
     """
     def __init__(self, num_episodes: int = 20, steps_per_episode: int = 50):
         self.num_episodes = num_episodes

@@ -115,7 +115,7 @@ def run_task_16_strategy_game_ai_benchmark() -> bool:
         new_pos = current_state[:, :3] + new_vel * dt
         raw_next_state = np.hstack([new_pos, new_vel])
         
-        # Formalny Guard Kategorialny (0% Naruszeń Reguł Gry)
+        # Formalny Guard Kategorialny (filtracja stanów do punktu stałego)
         safe_state, _ = cat_filter.filter_state(raw_next_state)
         current_state = safe_state
         
@@ -136,7 +136,6 @@ def run_task_16_strategy_game_ai_benchmark() -> bool:
     print(f"[RESULT] Initial Threat Field Drift RMSE: {rmse_before_streaming:.6f}")
     print(f"[RESULT] On-The-Fly Adapted Threat Field RMSE: {rmse_after_streaming:.6f}")
     print(f"[RESULT] Real-Time Threat Adaptation Improvement: {rmse_improvement_pct:.2f}%")
-    print(f"[RESULT] Unit Safety Rule Violations: 0.00% (100% Deterministic Formation Safety)")
     
     passed = (avg_tick_ms < 5.0) and (rmse_after_streaming <= rmse_before_streaming or rmse_improvement_pct > 15.0)
     verdict = "PASSED" if passed else "FAILED"

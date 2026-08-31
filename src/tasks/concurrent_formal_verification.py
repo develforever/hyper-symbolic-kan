@@ -114,7 +114,8 @@ def run_task_13_concurrent_formal_verification_benchmark() -> bool:
     # Kryteria Zaliczenia
     passed = (guarded_violation_rate == 0.0) and (step_latency_ms < 1.0)
     verdict = "PASSED" if passed else "FAILED"
-    print(f"[VERDICT] CONCURRENT MCT-NSE v2 VERIFICATION: {verdict} (100% Safety Invariant Preservation across N=1000 Agents - 0% Violations).")
+    print(f"[VERDICT] CONCURRENT MCT-NSE v2 VERIFICATION: {verdict} "
+          f"(N={N_agents} agentów, zmierzony guarded violation rate: {guarded_violation_rate:.2f}%).")
     print()
     return passed
 

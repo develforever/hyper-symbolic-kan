@@ -50,9 +50,14 @@ class TensorField:
     
     Features:
     - 0-epoch instantaneous fitting via Closed-Form ALS (`.fit()`).
-    - High-throughput C++ SIMD inference (< 0.3 us per point) (`.predict()`, `__call__()`).
+    - Vectorized NumPy inference (`.predict()`, `__call__()`). This facade does NOT
+      use `FastCPPKANEngine`: `predict()` calls `TDFFNet.evaluate()`, i.e. plain
+      NumPy. Measured C++ engine throughput lives separately in
+      `tests/test_cpp_kernels.py::test_cpp_throughput_and_latency_benchmark`.
     - Exact analytical spatial gradients $\nabla f(X)$ (`.gradient()`).
-    - Zero-copy conversion to PyTorch (`.to_torch()`) or JAX (`.to_jax()`).
+    - Weight export to PyTorch (`.to_torch()`) and JAX (`.to_jax()`) layers. The
+      conversion copies the weights: `torch.from_numpy(...).to(dtype, device)`
+      followed by `copy_()`.
     """
     def __init__(
         self,
@@ -158,7 +163,7 @@ class TensorField:
         return field
 
     def to_torch(self, dtype=None, device=None) -> "ContinuousKANLayer":
-        """Converts to PyTorch ContinuousKANLayer with current weights."""
+        """Copies the current weights into a new PyTorch ContinuousKANLayer."""
         if not _HAS_TORCH:
             raise ImportError("PyTorch is required for `.to_torch()`")
         if dtype is None:
@@ -270,7 +275,7 @@ class TensorTrainField:
         return self._model.gradient(X_arr)
 
     def to_torch(self, dtype=None, device=None) -> "TensorTrainKANLayer":
-        """Converts to PyTorch TensorTrainKANLayer."""
+        """Copies the current TT cores into a new PyTorch TensorTrainKANLayer."""
         if not _HAS_TORCH:
             raise ImportError("PyTorch is required for `.to_torch()`")
         if dtype is None:
@@ -380,7 +385,12 @@ class CBFPlanner:
     r"""
     High-Level Control Barrier Function (CBF) Robotics Trajectory Planner.
     
-    Provides certified collision avoidance with 0% boundary violations.
+    Filters control inputs through a CBF constraint solved as a QP (SLSQP).
+
+    Scope of the guarantee: collision-freedom is checked on single scenarios in
+    `tests/test_applications.py`. It is NOT a guarantee in the dynamic regime --
+    the HOCBF condition drops the Hessian term (audit M1, open), and the fallback
+    path after QP failure does not preserve CBF satisfaction (audit M4, open).
     """
     def __init__(
         self,

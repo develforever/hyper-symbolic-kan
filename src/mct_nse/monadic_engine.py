@@ -67,8 +67,8 @@ class MonadicEngine(Generic[S]):
     r"""
     Monadyczny Silnik Obliczeniowy MCT-NSE.
     
-    Zapewnia w 100% deterministyczne, bezgradientowe składanie obliczeń stanowych
-    i egzekwowanie ciągłości logicznej w kategorii stanów bezpiecznych.
+    Deterministyczne, bezgradientowe składanie obliczeń stanowych w monadzie stanu.
+    Determinizm wynika z braku RNG w ścieżce wykonania — nie jest weryfikowany testem.
     """
     def __init__(self, initial_state: S):
         self.current_state = initial_state

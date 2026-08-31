@@ -16,7 +16,9 @@ class HybridPipelineTask:
     Architektura (0 Epok Gradientowych):
     1. HS-CKAN Engine: Relacyjne wnioskowanie $N$-argumentowe wyznaczające docelową strefę bezpieczną.
     2. TDFF-Net Geometry Field: Odczyt ciagłego pola przeszkód $f(\mathbf{x})$ oraz analitycznego gradientu $\nabla f(\mathbf{x})$.
-    3. MCT-NSE Monadic Guard: Zapewnia 100% deterministyczną filtrację stanów w monadzie stanu $S^* = \text{Fix}(\prod_i M_i)$.
+    3. MCT-NSE Monadic Guard: Deterministyczna filtracja stanów w monadzie stanu $S^* = \text{Fix}(\prod_i M_i)$,
+       iterowana do punktu stałego przez najwyżej `max_iters` przebiegów
+       (bez sygnalizacji nieosiągnięcia punktu stałego).
     """
     def __init__(self, num_agents: int = 5, num_zones: int = 4, num_steps: int = 100):
         self.num_agents = num_agents
