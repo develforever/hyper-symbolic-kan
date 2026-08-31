@@ -43,7 +43,13 @@ if(MSVC)
     target_compile_options(_cpp_kernels PRIVATE
         /O2
         /arch:AVX2
-        /fp:fast
+        # IEEE-conformant FP semantics. /fp:fast was removed (audit C7): it
+        # permits reassociation of the Chebyshev recurrence and assumes the
+        # absence of NaN/Inf, which invalidates the `total_energy < 1e-14`
+        # guards and NaN detection in the kernels.
+        /fp:precise
+        # FMA contraction only -- increases accuracy, keeps IEEE semantics.
+        /fp:contract
     )
     if(OpenMP_CXX_FOUND)
         target_compile_options(_cpp_kernels PRIVATE /openmp)
@@ -51,7 +57,12 @@ if(MSVC)
 else()
     target_compile_options(_cpp_kernels PRIVATE
         -O3
-        -ffast-math
+        # -ffast-math was removed (audit C7): it permits reassociation of the
+        # Chebyshev recurrence and assumes the absence of NaN/Inf, which
+        # invalidates the `total_energy < 1e-14` guards and NaN detection in
+        # the kernels. Only FMA contraction is kept -- it is IEEE-safe and
+        # increases accuracy.
+        -ffp-contract=fast
     )
     # AVX2 flags on x86/x64
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64)|(amd64)")

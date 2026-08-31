@@ -144,8 +144,8 @@ def test_dmrg_2site_rank_adaptation():
 def test_cpp_kernels_stage_b_precision():
     r"""
     Weryfikacja dokładności numerycznej operacji C++ z Etapu B:
-    1. project_chebyshev_modal (błąd < 1e-11)
-    2. build_dmrg_normal_equations (błąd < 1e-10)
+    1. project_chebyshev_modal (błąd < 1e-12)
+    2. build_dmrg_normal_equations (błąd < 1e-11)
     """
     np.random.seed(42)
     engine = FastCPPKANEngine(spatial_dim=3, degree=3)
@@ -161,7 +161,7 @@ def test_cpp_kernels_stage_b_precision():
     
     err_proj = float(np.max(np.abs(modal_cpp - modal_py)))
     print(f"\n[C++ Modal Projection] Max Absolute Error: {err_proj:.4e}")
-    assert err_proj < 1e-11, f"Modal projection error too large: {err_proj}"
+    assert err_proj < 1e-12, f"Modal projection error too large: {err_proj}"
     
     # 2. Test akumulacji układu normalnego DMRG
     N = 200
@@ -184,8 +184,8 @@ def test_cpp_kernels_stage_b_precision():
     err_A = float(np.max(np.abs(A_cpp - A_py)))
     err_B = float(np.max(np.abs(B_cpp - B_py)))
     print(f"[C++ DMRG Normal Equations] Max Error A: {err_A:.4e} | B: {err_B:.4e}")
-    assert err_A < 1e-10, f"DMRG Matrix A error too large: {err_A}"
-    assert err_B < 1e-10, f"DMRG Vector B error too large: {err_B}"
+    assert err_A < 1e-11, f"DMRG Matrix A error too large: {err_A}"
+    assert err_B < 1e-11, f"DMRG Vector B error too large: {err_B}"
 
 
 if __name__ == "__main__":

@@ -11,7 +11,8 @@ from src.cpp_kernels.cpp_kan_engine import FastCPPKANEngine
 def test_tt_kan_cpp_forward_precision():
     """
     Test weryfikujący dokładność numeryczną ewaluacji TT-KAN w C++ (nanobind + SIMD).
-    Maksymalny dopuszczalny błąd bezwzględny względem referencji NumPy: < 1e-11.
+    Maksymalny dopuszczalny błąd bezwzględny względem referencji NumPy: < 1e-12.
+    Próg zaostrzony o rząd wielkości po usunięciu /fp:fast i -ffast-math (audyt C7).
     """
     np.random.seed(42)
     N = 5000
@@ -32,7 +33,7 @@ def test_tt_kan_cpp_forward_precision():
     
     max_err = float(np.max(np.abs(Y_py - Y_cpp)))
     print(f"\n[TT-KAN Forward] Max Absolute Error C++ vs NumPy: {max_err:.4e}")
-    assert max_err < 1e-11, f"TT-KAN C++ forward error too large: {max_err}"
+    assert max_err < 1e-12, f"TT-KAN C++ forward error too large: {max_err}"
 
 
 def test_tt_kan_cpp_gradient_precision():
@@ -59,7 +60,7 @@ def test_tt_kan_cpp_gradient_precision():
     
     max_err = float(np.max(np.abs(grad_py - grad_cpp)))
     print(f"\n[TT-KAN Gradient] Max Error C++ vs Analytical Python: {max_err:.4e}")
-    assert max_err < 1e-11, f"TT-KAN C++ gradient error too large: {max_err}"
+    assert max_err < 1e-12, f"TT-KAN C++ gradient error too large: {max_err}"
     
     # 3. Sprawdzenie z różnicami skończonymi na podzbiorze punktów
     eps = 1e-6
@@ -76,7 +77,7 @@ def test_tt_kan_cpp_gradient_precision():
             
             cpp_grad_d = grad_cpp[i, d]
             diff = abs(num_grad_d - cpp_grad_d)
-            assert diff < 1e-5, f"Finite diff mismatch at sample {i}, dim {d}: num={num_grad_d}, cpp={cpp_grad_d}"
+            assert diff < 1e-6, f"Finite diff mismatch at sample {i}, dim {d}: num={num_grad_d}, cpp={cpp_grad_d}"
 
 
 def test_cp_kan_cpp_forward_precision():
@@ -100,7 +101,7 @@ def test_cp_kan_cpp_forward_precision():
     
     max_err = float(np.max(np.abs(Y_py - Y_cpp)))
     print(f"\n[CP-KAN Forward] Max Error C++ vs NumPy: {max_err:.4e}")
-    assert max_err < 1e-11, f"CP-KAN C++ forward error too large: {max_err}"
+    assert max_err < 1e-12, f"CP-KAN C++ forward error too large: {max_err}"
 
 
 def test_cp_kan_cpp_gradient_precision():
@@ -124,7 +125,7 @@ def test_cp_kan_cpp_gradient_precision():
     
     max_err = float(np.max(np.abs(grad_py - grad_cpp)))
     print(f"\n[CP-KAN Gradient] Max Error C++ vs Analytical Python: {max_err:.4e}")
-    assert max_err < 1e-11, f"CP-KAN C++ gradient error too large: {max_err}"
+    assert max_err < 1e-12, f"CP-KAN C++ gradient error too large: {max_err}"
 
 
 def test_cpp_throughput_and_latency_benchmark():
