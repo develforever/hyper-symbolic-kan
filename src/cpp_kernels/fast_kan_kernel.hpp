@@ -7,6 +7,40 @@
 #include <omp.h>
 #endif
 
+// ---------------------------------------------------------------------------
+// Portable pragma macros (audit C5).
+//
+// The kernels previously used `#pragma loop(ivdep)`, which is MSVC-only syntax:
+// GCC/Clang silently ignore it and report it under -Wunknown-pragmas, so the
+// vectorisation hint never existed on those toolchains. Every OpenMP pragma is
+// now emitted through a macro that expands to nothing unless the compiler
+// actually enables the corresponding OpenMP level, which keeps the sources
+// warning-free under -Wall -Wextra -Wunknown-pragmas -Werror with OpenMP off
+// (e.g. AppleClang without libomp).
+//
+//   _OPENMP >= 200203  -> OpenMP 2.0: `parallel for` / `for` / `critical`
+//   _OPENMP >= 201307  -> OpenMP 4.0: `simd` (MSVC's classic /openmp stops at
+//                         2.0 and reports 4.0 directives, hence the guard)
+// ---------------------------------------------------------------------------
+#define HS_PRAGMA(...) _Pragma(#__VA_ARGS__)
+
+#if defined(_OPENMP)
+#  define HS_OMP(...) HS_PRAGMA(omp __VA_ARGS__)
+#else
+#  define HS_OMP(...)
+#endif
+
+#if defined(_OPENMP) && _OPENMP >= 201307
+// `simd reduction(+: ...)` authorises reassociation of the *reduction* only.
+// It does not re-enable the -ffast-math relaxations removed in audit C7: NaN/Inf
+// semantics and the Chebyshev recurrence order are untouched.
+#  define HS_OMP_SIMD HS_PRAGMA(omp simd)
+#  define HS_OMP_SIMD_REDUCE(...) HS_PRAGMA(omp simd reduction(+: __VA_ARGS__))
+#else
+#  define HS_OMP_SIMD
+#  define HS_OMP_SIMD_REDUCE(...)
+#endif
+
 namespace hs_kan {
 
 // Oblicza wielomiany Czebyszewa T_0 ... T_K dla podanego x w zakresie [-1.0, 1.0]

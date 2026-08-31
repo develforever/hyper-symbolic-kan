@@ -4,6 +4,14 @@ project(hyper_symbolic_kan LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# ---------------------------------------------------------------------------
+# Build options
+# ---------------------------------------------------------------------------
+# HSKAN_WERROR: warnings-as-errors on the extension target. On in CI; a distro
+# or end-user build that hits a warning from a newer compiler can pass
+# -DHSKAN_WERROR=OFF without patching this file.
+option(HSKAN_WERROR "Treat compiler warnings on _cpp_kernels as errors" ON)
+
 # Find Python & nanobind
 find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
 
@@ -21,7 +29,11 @@ if(NOT TARGET nanobind)
   find_package(nanobind CONFIG REQUIRED)
 endif()
 
-# Find OpenMP
+# Find OpenMP. Not required: AppleClang has no OpenMP runtime unless libomp is
+# installed. Every OpenMP pragma in the kernels is emitted through the HS_OMP*
+# macros (fast_kan_kernel.hpp), which expand to nothing when _OPENMP is not
+# defined -- so a build without OpenMP is correct, single-threaded and
+# warning-free under -Wunknown-pragmas.
 find_package(OpenMP)
 
 # Source files
@@ -38,7 +50,26 @@ nanobind_add_module(_cpp_kernels
 # Target include directories
 target_include_directories(_cpp_kernels PRIVATE src/cpp_kernels)
 
-# SIMD and Optimization compiler flags
+# ---------------------------------------------------------------------------
+# Warnings (audit C5)
+# ---------------------------------------------------------------------------
+# -Wunknown-pragmas is what makes the MSVC-only `#pragma loop(ivdep)` class of
+# bug visible on GCC/Clang instead of being silently ignored.
+if(MSVC)
+    target_compile_options(_cpp_kernels PRIVATE /W4)
+    if(HSKAN_WERROR)
+        target_compile_options(_cpp_kernels PRIVATE /WX)
+    endif()
+else()
+    target_compile_options(_cpp_kernels PRIVATE -Wall -Wextra -Wunknown-pragmas)
+    if(HSKAN_WERROR)
+        target_compile_options(_cpp_kernels PRIVATE -Werror)
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Optimization / floating point / SIMD
+# ---------------------------------------------------------------------------
 if(MSVC)
     target_compile_options(_cpp_kernels PRIVATE
         /O2

@@ -70,7 +70,7 @@ void evaluate_tt_kan_single(
 
             for (int s = 0; s < r_next; ++s) {
                 double m_rs = 0.0;
-                #pragma loop(ivdep)
+                HS_OMP_SIMD_REDUCE(m_rs)
                 for (int k = 0; k < K1; ++k) {
                     m_rs += T[k] * core_r[k * r_next + s];
                 }
@@ -94,7 +94,7 @@ void evaluate_tt_kan_batch(
     int degree,
     double* __restrict Y_out
 ) {
-    #pragma omp parallel for schedule(static) if(N > 100)
+    HS_OMP(parallel for schedule(static) if(N > 100))
     for (int i = 0; i < N; ++i) {
         const double* x_i = X + i * spatial_dim;
         evaluate_tt_kan_single(x_i, cores_flat, core_offsets, ranks, spatial_dim, degree, &Y_out[i]);
@@ -180,7 +180,7 @@ void evaluate_tt_kan_gradient_single(
             for (int s = 0; s < r_next; ++s) {
                 double m_val = 0.0;
                 double dm_val = 0.0;
-                #pragma loop(ivdep)
+                HS_OMP_SIMD_REDUCE(m_val, dm_val)
                 for (int k = 0; k < K1; ++k) {
                     const double w = core_r[k * r_next + s];
                     m_val += T[k] * w;
@@ -302,7 +302,7 @@ void evaluate_tt_kan_gradient_batch(
     int degree,
     double* __restrict grad_out
 ) {
-    #pragma omp parallel for schedule(static) if(N > 100)
+    HS_OMP(parallel for schedule(static) if(N > 100))
     for (int i = 0; i < N; ++i) {
         const double* x_i = X + i * spatial_dim;
         double* grad_i = grad_out + i * spatial_dim;
@@ -324,7 +324,7 @@ void evaluate_cp_kan_batch(
     const int D = spatial_dim;
     const int R = rank;
 
-    #pragma omp parallel for schedule(static) if(N > 100)
+    HS_OMP(parallel for schedule(static) if(N > 100))
     for (int i = 0; i < N; ++i) {
         const double* __restrict x_i = X + i * D;
 
@@ -355,7 +355,7 @@ void evaluate_cp_kan_batch(
             for (int r = 0; r < R; ++r) {
                 const double* __restrict W_dr = W_d + (r * K1);
                 double phi = 0.0;
-                #pragma loop(ivdep)
+                HS_OMP_SIMD_REDUCE(phi)
                 for (int k = 0; k < K1; ++k) {
                     phi += W_dr[k] * T[k];
                 }
@@ -385,7 +385,7 @@ void evaluate_cp_kan_gradient_batch(
     const int D = spatial_dim;
     const int R = rank;
 
-    #pragma omp parallel for schedule(static) if(N > 100)
+    HS_OMP(parallel for schedule(static) if(N > 100))
     for (int i = 0; i < N; ++i) {
         const double* __restrict x_i = X + i * D;
         double* __restrict grad_i = grad_out + i * D;
@@ -435,7 +435,7 @@ void evaluate_cp_kan_gradient_batch(
                 const double* __restrict W_dr = W_d + (r * K1);
                 double p_val = 0.0;
                 double dp_val = 0.0;
-                #pragma loop(ivdep)
+                HS_OMP_SIMD_REDUCE(p_val, dp_val)
                 for (int k = 0; k < K1; ++k) {
                     const double w = W_dr[k];
                     p_val += w * T[k];
@@ -495,7 +495,7 @@ void project_chebyshev_modal_batch(
     int r_next,
     double* __restrict modal_core_out
 ) {
-    #pragma omp parallel for schedule(static) if(r_prev > 4)
+    HS_OMP(parallel for schedule(static) if(r_prev > 4))
     for (int r = 0; r < r_prev; ++r) {
         for (int k = 0; k < K1; ++k) {
             const double* v_row = V_inv + k * K1;
@@ -503,7 +503,7 @@ void project_chebyshev_modal_batch(
             
             for (int s = 0; s < r_next; ++s) {
                 double acc = 0.0;
-                #pragma loop(ivdep)
+                HS_OMP_SIMD_REDUCE(acc)
                 for (int i = 0; i < K1; ++i) {
                     acc += v_row[i] * nodal_core[(r * K1 + i) * r_next + s];
                 }
@@ -531,13 +531,13 @@ void build_dmrg_normal_equations_batch(
     std::memset(A_out, 0, P * P * sizeof(double));
     std::memset(B_out, 0, P * sizeof(double));
 
-    #pragma omp parallel
+    HS_OMP(parallel)
     {
         std::vector<double> local_A(P * P, 0.0);
         std::vector<double> local_B(P, 0.0);
         std::vector<double> phi(P, 0.0);
 
-        #pragma omp for schedule(static)
+        HS_OMP(for schedule(static))
         for (int n = 0; n < N; ++n) {
             const double y_n = Y[n];
             const double* l_ptr = L_prev + n * r_prev;
@@ -552,7 +552,6 @@ void build_dmrg_normal_equations_batch(
                     const double t1_val = l_val * t1_ptr[k1];
                     for (int k2 = 0; k2 < K1; ++k2) {
                         const double mid_val = t1_val * t2_ptr[k2];
-                        #pragma loop(ivdep)
                         for (int rn = 0; rn < r_next; ++rn) {
                             phi[p_idx++] = mid_val * r_ptr[rn];
                         }
@@ -567,14 +566,15 @@ void build_dmrg_normal_equations_batch(
             for (int i = 0; i < P; ++i) {
                 const double phi_i = phi[i];
                 double* a_row = local_A.data() + i * P;
-                #pragma loop(ivdep)
+                const double* phi_row = phi.data();
+                HS_OMP_SIMD
                 for (int j = 0; j < P; ++j) {
-                    a_row[j] += phi_i * phi[j];
+                    a_row[j] += phi_i * phi_row[j];
                 }
             }
         }
 
-        #pragma omp critical
+        HS_OMP(critical)
         {
             for (int i = 0; i < P * P; ++i) {
                 A_out[i] += local_A[i];
