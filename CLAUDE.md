@@ -151,6 +151,16 @@ w `AUDYT_HYPER_SYMBOLIC_KAN.md`.
   (AppleClang bez libomp) jest czysty pod `-Wunknown-pragmas`. Target
   `_cpp_kernels` kompiluje się z `-Wall -Wextra -Wunknown-pragmas -Werror`
   (MSVC: `/W4 /WX`), sterowane opcją `HSKAN_WERROR` (domyślnie ON).
+  Jeden `#pragma loop(ivdep)` nie został przetłumaczony, tylko **usunięty**:
+  pętla po `rn` w `build_dmrg_normal_equations_batch` pisze przez `phi[p_idx++]`,
+  czyli niesie zmienną indukcyjną, której `omp simd` nie dopuszcza. Ta sama pętla
+  jest przedmiotem otwartego znaleziska **C1** (`std::vector<double> local_A(P*P)`
+  alokowane per wątek — 679 MB na wątek przy `max_rank=16, degree=5`, redukcja
+  serializowana przez `omp critical`). Niewektoryzowalność jest **drugim,
+  niezależnym** powodem do przepisania tej pętli: blokowy `cblas_dsyrk`
+  proponowany w audycie C1 zdejmuje jednocześnie zużycie pamięci i potrzebę
+  ręcznej wektoryzacji. C1 pozostaje otwarte (Sprint 3) — nie mieszaj go
+  z pracą nad przenośnością.
 - **C6** — `-mavx2 -mfma` / `/arch:AVX2` już nie są bezwarunkowe. Domyślny build
   to baseline x86-64 (`-mno-avx2 -mno-fma`, jawnie, żeby było widać w logu);
   AVX2 za opcją `HSKAN_ENABLE_AVX2=OFF`. Job `test` na Linuksie weryfikuje
@@ -161,9 +171,20 @@ w `AUDYT_HYPER_SYMBOLIC_KAN.md`.
   `fast_kan_bindings.cpp` liczone w `std::size_t`; walidacja `P * P` przez
   dzielenie (`P > A_out.size() / P`), odrzucanie niedodatnich wymiarów.
   Test regresji: `tests/test_cpp_size_guards.py`.
+  **Kolejność względem planu odwrócona**: C2 wszedł *po* V2, nie przed.
+  `tests/test_cpp_size_guards.py` importuje `tests/_native.py`, który dochodzi
+  dopiero z V2 — przy kolejności planowej commit C2 nie dałby się uruchomić
+  w izolacji.
 - **V2** — `tests/_native.py::requires_native` (skipif) + zmienna
   `HSKAN_REQUIRE_NATIVE=1`, która zamienia skip w twardy błąd; progi
   wydajnościowe zależne od sprzętu usunięte z `tests/` (patrz niżej).
+  Pomiary czasu żyją teraz w `benchmarks/test_kernel_benchmarks.py`
+  (pytest-benchmark, bez asercji absolutnej), z baseline'em w
+  `benchmarks/baselines/<platforma>/0001_baseline.json` i opisem sprzętu oraz
+  flag kompilacji w `benchmarks/README.md`; `testpaths = ["tests"]`
+  w `pyproject.toml` pilnuje, żeby `pytest` ich nie zbierał jako testów.
+  Usunięty `test_cpp_throughput_and_latency_benchmark` nie ma już odwołań
+  w `src/` (docstring `src/facade.py` wskazuje na nową lokalizację).
 
 ### Do rozstrzygnięcia (otwarte po Sprint 1)
 

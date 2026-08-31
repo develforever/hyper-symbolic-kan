@@ -53,7 +53,8 @@ class TensorField:
     - Vectorized NumPy inference (`.predict()`, `__call__()`). This facade does NOT
       use `FastCPPKANEngine`: `predict()` calls `TDFFNet.evaluate()`, i.e. plain
       NumPy. Measured C++ engine throughput lives separately in
-      `tests/test_cpp_kernels.py::test_cpp_throughput_and_latency_benchmark`.
+      `benchmarks/test_kernel_benchmarks.py` (pytest-benchmark, not collected by
+      `pytest tests/`).
     - Exact analytical spatial gradients $\nabla f(X)$ (`.gradient()`).
     - Weight export to PyTorch (`.to_torch()`) and JAX (`.to_jax()`) layers. The
       conversion copies the weights: `torch.from_numpy(...).to(dtype, device)`
