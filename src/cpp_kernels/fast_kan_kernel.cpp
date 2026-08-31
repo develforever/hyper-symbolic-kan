@@ -2,6 +2,7 @@
 #include <cmath>
 #include <vector>
 #include <cstring>
+#include <cstddef>
 #include <algorithm>
 
 namespace hs_kan {
@@ -96,7 +97,7 @@ void evaluate_tt_kan_batch(
 ) {
     HS_OMP(parallel for schedule(static) if(N > 100))
     for (int i = 0; i < N; ++i) {
-        const double* x_i = X + i * spatial_dim;
+        const double* x_i = X + static_cast<std::size_t>(i) * spatial_dim;
         evaluate_tt_kan_single(x_i, cores_flat, core_offsets, ranks, spatial_dim, degree, &Y_out[i]);
     }
 }
@@ -304,8 +305,8 @@ void evaluate_tt_kan_gradient_batch(
 ) {
     HS_OMP(parallel for schedule(static) if(N > 100))
     for (int i = 0; i < N; ++i) {
-        const double* x_i = X + i * spatial_dim;
-        double* grad_i = grad_out + i * spatial_dim;
+        const double* x_i = X + static_cast<std::size_t>(i) * spatial_dim;
+        double* grad_i = grad_out + static_cast<std::size_t>(i) * spatial_dim;
         evaluate_tt_kan_gradient_single(x_i, cores_flat, core_offsets, ranks, spatial_dim, degree, grad_i);
     }
 }
@@ -326,7 +327,7 @@ void evaluate_cp_kan_batch(
 
     HS_OMP(parallel for schedule(static) if(N > 100))
     for (int i = 0; i < N; ++i) {
-        const double* __restrict x_i = X + i * D;
+        const double* __restrict x_i = X + static_cast<std::size_t>(i) * D;
 
         double stack_accum[MAX_STACK_RANK];
         double stack_T[MAX_STACK_DEGREE];
@@ -387,8 +388,8 @@ void evaluate_cp_kan_gradient_batch(
 
     HS_OMP(parallel for schedule(static) if(N > 100))
     for (int i = 0; i < N; ++i) {
-        const double* __restrict x_i = X + i * D;
-        double* __restrict grad_i = grad_out + i * D;
+        const double* __restrict x_i = X + static_cast<std::size_t>(i) * D;
+        double* __restrict grad_i = grad_out + static_cast<std::size_t>(i) * D;
 
         bool use_stack = (D <= MAX_STACK_DIM) && (R <= MAX_STACK_RANK) && (K1 <= MAX_STACK_DEGREE);
 
@@ -527,25 +528,36 @@ void build_dmrg_normal_equations_batch(
     double* __restrict A_out,
     double* __restrict B_out
 ) {
-    const int P = r_prev * K1 * K1 * r_next;
-    std::memset(A_out, 0, P * P * sizeof(double));
+    // Audit C2: `const int P = r_prev * K1 * K1 * r_next` overflowed for legal
+    // user configurations (r=32, degree=7 -> P = 65536, P*P = 4.29e9 > INT32_MAX),
+    // which is signed-overflow UB and produced a negative value that was then
+    // converted to a huge size_t in memset. Every size product below is computed
+    // in std::size_t; the callers (bindings) validate P against the output buffer
+    // before this function is entered.
+    const std::size_t P = static_cast<std::size_t>(r_prev)
+                        * static_cast<std::size_t>(K1)
+                        * static_cast<std::size_t>(K1)
+                        * static_cast<std::size_t>(r_next);
+    const std::size_t PP = P * P;
+
+    std::memset(A_out, 0, PP * sizeof(double));
     std::memset(B_out, 0, P * sizeof(double));
 
     HS_OMP(parallel)
     {
-        std::vector<double> local_A(P * P, 0.0);
+        std::vector<double> local_A(PP, 0.0);
         std::vector<double> local_B(P, 0.0);
         std::vector<double> phi(P, 0.0);
 
         HS_OMP(for schedule(static))
         for (int n = 0; n < N; ++n) {
             const double y_n = Y[n];
-            const double* l_ptr = L_prev + n * r_prev;
-            const double* t1_ptr = T_d + n * K1;
-            const double* t2_ptr = T_d1 + n * K1;
-            const double* r_ptr = R_next + n * r_next;
+            const double* l_ptr = L_prev + static_cast<std::size_t>(n) * r_prev;
+            const double* t1_ptr = T_d + static_cast<std::size_t>(n) * K1;
+            const double* t2_ptr = T_d1 + static_cast<std::size_t>(n) * K1;
+            const double* r_ptr = R_next + static_cast<std::size_t>(n) * r_next;
 
-            int p_idx = 0;
+            std::size_t p_idx = 0;
             for (int rp = 0; rp < r_prev; ++rp) {
                 const double l_val = l_ptr[rp];
                 for (int k1 = 0; k1 < K1; ++k1) {
@@ -553,22 +565,23 @@ void build_dmrg_normal_equations_batch(
                     for (int k2 = 0; k2 < K1; ++k2) {
                         const double mid_val = t1_val * t2_ptr[k2];
                         for (int rn = 0; rn < r_next; ++rn) {
-                            phi[p_idx++] = mid_val * r_ptr[rn];
+                            phi[p_idx + static_cast<std::size_t>(rn)] = mid_val * r_ptr[rn];
                         }
+                        p_idx += static_cast<std::size_t>(r_next);
                     }
                 }
             }
 
-            for (int i = 0; i < P; ++i) {
+            for (std::size_t i = 0; i < P; ++i) {
                 local_B[i] += phi[i] * y_n;
             }
 
-            for (int i = 0; i < P; ++i) {
+            for (std::size_t i = 0; i < P; ++i) {
                 const double phi_i = phi[i];
                 double* a_row = local_A.data() + i * P;
                 const double* phi_row = phi.data();
                 HS_OMP_SIMD
-                for (int j = 0; j < P; ++j) {
+                for (std::size_t j = 0; j < P; ++j) {
                     a_row[j] += phi_i * phi_row[j];
                 }
             }
@@ -576,17 +589,17 @@ void build_dmrg_normal_equations_batch(
 
         HS_OMP(critical)
         {
-            for (int i = 0; i < P * P; ++i) {
+            for (std::size_t i = 0; i < PP; ++i) {
                 A_out[i] += local_A[i];
             }
-            for (int i = 0; i < P; ++i) {
+            for (std::size_t i = 0; i < P; ++i) {
                 B_out[i] += local_B[i];
             }
         }
     }
 
     // Add regularization alpha to diagonal of A_out
-    for (int i = 0; i < P; ++i) {
+    for (std::size_t i = 0; i < P; ++i) {
         A_out[i * P + i] += alpha;
     }
 }

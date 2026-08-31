@@ -19,6 +19,10 @@ option(HSKAN_ENABLE_AVX2 "Compile the whole extension with AVX2/FMA (no runtime 
 # -DHSKAN_WERROR=OFF without patching this file.
 option(HSKAN_WERROR "Treat compiler warnings on _cpp_kernels as errors" ON)
 
+# HSKAN_SANITIZE: semicolon/comma separated sanitizer list, e.g. "address,undefined".
+# Empty (default) = no sanitizers. Used by the CI ASan/UBSan job (audit C2).
+set(HSKAN_SANITIZE "" CACHE STRING "Sanitizers for _cpp_kernels, e.g. address,undefined (GCC/Clang only)")
+
 # Find Python & nanobind
 find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
 
@@ -116,6 +120,21 @@ else()
     if(OpenMP_CXX_FOUND)
         target_link_libraries(_cpp_kernels PRIVATE OpenMP::OpenMP_CXX)
     endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Sanitizers (audit C2) -- GCC/Clang only, Debug-style build
+# ---------------------------------------------------------------------------
+if(HSKAN_SANITIZE AND NOT MSVC)
+    string(REPLACE ";" "," HSKAN_SANITIZE_LIST "${HSKAN_SANITIZE}")
+    message(STATUS "[hs-kan] sanitizers: ${HSKAN_SANITIZE_LIST}")
+    target_compile_options(_cpp_kernels PRIVATE
+        -fsanitize=${HSKAN_SANITIZE_LIST}
+        -fno-sanitize-recover=all
+        -fno-omit-frame-pointer
+        -g
+    )
+    target_link_options(_cpp_kernels PRIVATE -fsanitize=${HSKAN_SANITIZE_LIST})
 endif()
 
 # Install module into src/cpp_kernels
