@@ -193,14 +193,21 @@ jobs:
         run: |
           # A sanitized shared library loaded by an unsanitized interpreter must
           # have libasan first in the link order, hence LD_PRELOAD.
-          export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
-          # Diagnostic: the job aborts on the first native call with only Python's
-          # faulthandler traceback and no sanitizer text. ASan/UBSan write their
-          # reports with raw write(2) (which survives abort), so a report that is
-          # *missing* points at a libc-stdio-buffered message (e.g. libstdc++'s
-          # "terminate called after throwing ...") lost when abort() skips the
-          # stdio flush. Line-buffer the whole process's stderr so it survives.
-          stdbuf -oL -eL python -u -m pytest tests/test_cpp_size_guards.py tests/test_cpp_kernels.py -q -rs -s
+          #
+          # libstdc++ MUST be preloaded alongside libasan. GCC's ASan resolves the
+          # real __cxa_throw via dlsym while initialising its interceptors; under
+          # LD_PRELOAD into a non-instrumented Python, libstdc++ is not yet loaded
+          # at that point, so real___cxa_throw stays NULL. The first C++ exception
+          # -- here the size guard *correctly* throwing std::invalid_argument --
+          # then trips
+          #   AddressSanitizer: CHECK failed: asan_interceptors.cpp:458
+          #     "((__interception::real___cxa_throw)) != (0)"
+          # and aborts. This is an ASan/LD_PRELOAD limitation, not a defect in the
+          # kernel; preloading libstdc++.so.6 makes the symbol resolvable.
+          export LD_PRELOAD="$(gcc -print-file-name=libasan.so) $(gcc -print-file-name=libstdc++.so.6)"
+          # Line-buffer stderr so a future abort's sanitizer report is not lost to
+          # stdio buffering (that is how the CHECK-failure above was diagnosed).
+          stdbuf -oL -eL python -u -m pytest tests/test_cpp_size_guards.py tests/test_cpp_kernels.py -q -rs
 
   # ---------------------------------------------------------------------------
   # 5. Lint / type-check gate (audit V4).
