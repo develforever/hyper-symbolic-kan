@@ -194,7 +194,13 @@ jobs:
           # A sanitized shared library loaded by an unsanitized interpreter must
           # have libasan first in the link order, hence LD_PRELOAD.
           export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
-          python -m pytest tests/test_cpp_size_guards.py tests/test_cpp_kernels.py -q -rs
+          # Diagnostic: the job aborts on the first native call with only Python's
+          # faulthandler traceback and no sanitizer text. ASan/UBSan write their
+          # reports with raw write(2) (which survives abort), so a report that is
+          # *missing* points at a libc-stdio-buffered message (e.g. libstdc++'s
+          # "terminate called after throwing ...") lost when abort() skips the
+          # stdio flush. Line-buffer the whole process's stderr so it survives.
+          stdbuf -oL -eL python -u -m pytest tests/test_cpp_size_guards.py tests/test_cpp_kernels.py -q -rs -s
 
   # ---------------------------------------------------------------------------
   # 5. Lint / type-check gate (audit V4).
