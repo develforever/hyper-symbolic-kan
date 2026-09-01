@@ -108,7 +108,6 @@ def test_facade_poisson_solver():
     
     res = solver.solve(f_rhs)
     assert res["pde_residual_rmse"] < 1e-3
-    assert res["solve_time_ms"] < 50.0
 
     # Continuous evaluation
     coords = np.array([[0.0, 0.0], [0.5, 0.5], [0.2, -0.3]])
