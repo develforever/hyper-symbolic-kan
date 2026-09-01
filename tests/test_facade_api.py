@@ -13,6 +13,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import hyper_kan as hk
 
+try:
+    import jax  # noqa: F401
+
+    _HAS_JAX = True
+except ImportError:
+    _HAS_JAX = False
+
 
 def test_facade_tensor_field_fit_predict_gradient():
     """Tests hk.TensorField end-to-end (ALS fit, forward, gradient, save/load)."""
@@ -61,6 +68,8 @@ def test_facade_tensor_field_torch_jax_bridges():
     assert torch_layer.degree == 3
 
     # Convert to JAX
+    if not _HAS_JAX:
+        pytest.skip("JAX not installed")
     jax_params, jax_layer = field.to_jax()
     assert jax_layer.in_features == 2
     assert "lambdas" in jax_params
