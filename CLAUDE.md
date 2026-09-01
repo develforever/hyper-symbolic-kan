@@ -186,6 +186,42 @@ w `AUDYT_HYPER_SYMBOLIC_KAN.md`.
   Usunięty `test_cpp_throughput_and_latency_benchmark` nie ma już odwołań
   w `src/` (docstring `src/facade.py` wskazuje na nową lokalizację).
 
+### Naprawione w Sprint 2 (pierwsze zielone CI)
+
+Pierwszy przebieg matrycy V4 był czerwony w 9 z 11 jobów. Trzy **niezależne**
+przyczyny źródłowe (nie jedna wspólna, wbrew pierwotnemu podejrzeniu o pragmy
+MSVC — buildy przechodziły, padały dopiero testy):
+
+- **JAX w teście facade.** `tests/test_facade_api.py::test_facade_tensor_field_torch_jax_bridges`
+  wołał `field.to_jax()` bezwarunkowo, a CI nie instaluje JAX →
+  `ImportError: JAX is required for .to_jax()` (src/facade.py:189). Padało 8 jobów
+  (pure-python, native-required, cała matryca 6×). Naprawa: wzorzec `_HAS_JAX` +
+  `pytest.skip` jak w `test_jax_kan.py`; weryfikacja `to_torch()` zostaje.
+- **ASan/UBSan — abort na pierwszym wyjątku C++, nie błąd jądra.** Guard rozmiaru
+  (audyt C2) *poprawnie* rzuca `std::invalid_argument`, co wymusza
+  `tests/test_cpp_size_guards.py:56`. Pod libasan wstrzykniętym przez `LD_PRELOAD`
+  do niezinstrumentowanego Pythona GCC-owy interceptor `__cxa_throw` miał
+  `real___cxa_throw == NULL` (libstdc++ nie był jeszcze wczytany w chwili
+  inicjalizacji ASan) → `AddressSanitizer: CHECK failed: asan_interceptors.cpp:458`.
+  Raport ginął w buforze stdio przy `abort()` (ASan pisze `write(2)`, ale ten
+  konkretny CHECK — nie); ujawniło go dopiero line-buforowanie stderr. Naprawa
+  (`.github/workflows/ci.yml`, job `sanitizers`): preload `libstdc++.so.6` obok
+  `libasan.so`. Zachowane `stdbuf -oL -eL` + `python -u`, żeby przyszły abort nie
+  gubił raportu. **Bez zmian w C++.**
+- **Progi zegarowe w `tests/` — dokończenie V2.** V2 deklarował usunięcie progów
+  wydajnościowych z `tests/`, ale przeoczył 6 asercji wall-clock w
+  `test_applications.py` (`avg_latency_us < 2500/3000`, `solve_time_ms < 100/200/1000`)
+  i `test_facade_api.py` (`solve_time_ms < 50`). Na współdzielonym runnerze
+  `solve_time_ms` skoczył z ~40 ms do 405 ms → czerwony `native-required` przy
+  niezmienionym kodzie. Usunięte wszystkie 6 (asercje poprawnościowe: kolizja/
+  sukces CBF, L2 < 1e-4, residuum < 1e-3, `isfinite` — nietknięte). Teraz
+  deklaracja V2 „brak progów wydajnościowych w tests/" jest faktycznie prawdziwa.
+
+Pozostałe czerwone znaleziska niezablokowane (poza zakresem tej pracy): doradczy
+zestaw ruff nadal zgłasza F401 (m.in. nieużywane `DomainBoxCBF`, `InterAgentCBF`
+w `test_applications.py`) i E501 — nie w bramce (`[tool.ruff.lint] select`), więc
+nie blokują; patrz „Bramka lintera jest wąska" niżej.
+
 ### Do rozstrzygnięcia (otwarte po Sprint 1)
 
 - **Sprzeczność progu opóźnienia.** Usunięty próg testowy mówił
